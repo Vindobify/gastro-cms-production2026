@@ -81,3 +81,14 @@ data/
 # Generated files
 *.generated.*
 
+# Documentation (nicht für GitHub)
+docs-und-anderes/
+*.md
+!README.md
+!COOLIFY_DEPLOYMENT.md
+!PRODUCTION_ENV.md
+!DEPLOYMENT_FAQ.md
+!ENV_VARIABLES.md
+!ENV_SETUP_ANLEITUNG.md
+!STRIPE_CONFIG_ERKLAERUNG.md
+
