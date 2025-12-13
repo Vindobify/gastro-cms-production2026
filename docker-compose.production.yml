@@ -1,6 +1,9 @@
 # ⚠️ WICHTIG: Diese Datei ist für Production-Deployment mit Docker Compose
 # Coolify verwendet normalerweise KEINE docker-compose.yml, sondern erstellt Container direkt aus Dockerfiles
 # Diese Datei ist für den Fall, dass du Docker Compose auf einem eigenen Server verwenden möchtest
+#
+# WICHTIG: Docker Compose lädt automatisch die .env Datei im gleichen Verzeichnis
+# Stelle sicher, dass POSTGRES_USER und POSTGRES_PASSWORD in der .env Datei gesetzt sind
 
 services:
   db:

@@ -245,13 +245,31 @@ fi
 
 # Migrationen ausführen
 echo "Führe Migrationen aus..."
-if docker compose -f docker-compose.production.yml exec -T crm npx prisma migrate deploy 2>&1; then
+
+# Lese POSTGRES_PASSWORD aus .env für DATABASE_URL
+if [ -f ".env" ]; then
+    POSTGRES_PASSWORD=$(grep "^POSTGRES_PASSWORD=" .env | cut -d '=' -f2 | tr -d '"' | tr -d "'" || echo "")
+    if [ -z "$POSTGRES_PASSWORD" ]; then
+        echo -e "${RED}❌ POSTGRES_PASSWORD nicht in .env gefunden${NC}"
+        exit 1
+    fi
+    # URL-encode das Passwort für DATABASE_URL
+    POSTGRES_PASSWORD_ENCODED=$(echo -n "$POSTGRES_PASSWORD" | sed 's/#/%23/g' | sed 's/@/%40/g' | sed 's/!/%21/g' | sed 's/\$/%24/g' | sed 's/&/%26/g' | sed 's/\*/%2A/g' | sed 's/+/%2B/g' | sed 's/,/%2C/g' | sed 's/:/%3A/g' | sed 's/;/%3B/g' | sed 's/=/%3D/g' | sed 's/?/%3F/g' | sed 's/\[/%5B/g' | sed 's/\]/%5D/g')
+    export DATABASE_URL="postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD_ENCODED}@db:5432/gastro_cms_multi?schema=public"
+else
+    echo -e "${RED}❌ .env Datei nicht gefunden${NC}"
+    exit 1
+fi
+
+# Setze DATABASE_URL im Container für Prisma
+if docker compose -f docker-compose.production.yml exec -T -e DATABASE_URL="$DATABASE_URL" crm npx prisma migrate deploy 2>&1; then
     echo -e "${GREEN}✅ Migrationen erfolgreich ausgeführt${NC}"
 else
     echo -e "${YELLOW}⚠️  Migrationen fehlgeschlagen, versuche db push...${NC}"
-    docker compose -f docker-compose.production.yml exec -T crm npx prisma db push --accept-data-loss 2>&1 || {
+    docker compose -f docker-compose.production.yml exec -T -e DATABASE_URL="$DATABASE_URL" crm npx prisma db push --accept-data-loss 2>&1 || {
         echo -e "${RED}❌ Datenbank-Push fehlgeschlagen${NC}"
         echo -e "${YELLOW}⚠️  Bitte prüfe die Datenbank manuell${NC}"
+        echo -e "${YELLOW}   DATABASE_URL: postgresql://${POSTGRES_USER}:***@db:5432/gastro_cms_multi${NC}"
     }
 fi
 
