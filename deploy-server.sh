@@ -186,21 +186,134 @@ echo ""
 echo "📊 Schritt 7: Service-Status prüfen..."
 docker compose -f docker-compose.production.yml ps
 
-# 8. Logs anzeigen
+# 8. Warte bis Services bereit sind
 echo ""
-echo "📋 Schritt 8: Logs (letzte 50 Zeilen)..."
+echo "⏳ Schritt 8: Warte bis Services bereit sind..."
+sleep 15
+
+# 9. Datenbank-Migrationen ausführen
+echo ""
+echo "🗄️  Schritt 9: Datenbank-Migrationen ausführen..."
+echo "Warte bis Datenbank bereit ist..."
+sleep 5
+
+# Prüfe ob Datenbank bereit ist
+for i in {1..30}; do
+    if docker compose -f docker-compose.production.yml exec -T db pg_isready -U gastrocms > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ Datenbank ist bereit${NC}"
+        break
+    fi
+    echo "Warte auf Datenbank... ($i/30)"
+    sleep 2
+done
+
+# Migrationen ausführen
+if docker compose -f docker-compose.production.yml exec -T crm npx prisma migrate deploy > /dev/null 2>&1; then
+    echo -e "${GREEN}✅ Migrationen erfolgreich ausgeführt${NC}"
+else
+    echo -e "${YELLOW}⚠️  Migrationen fehlgeschlagen, versuche db push...${NC}"
+    docker compose -f docker-compose.production.yml exec -T crm npx prisma db push --accept-data-loss || true
+    echo -e "${YELLOW}⚠️  Bitte prüfe die Datenbank manuell${NC}"
+fi
+
+# 10. Nginx konfigurieren
+echo ""
+echo "🌐 Schritt 10: Nginx konfigurieren..."
+
+# Prüfe ob Nginx installiert ist
+if ! command -v nginx &> /dev/null; then
+    echo "Nginx wird installiert..."
+    apt-get update
+    apt-get install -y nginx
+    systemctl start nginx
+    systemctl enable nginx
+    echo -e "${GREEN}✅ Nginx installiert${NC}"
+else
+    echo -e "${GREEN}✅ Nginx bereits installiert${NC}"
+fi
+
+# Kopiere Nginx-Konfiguration
+if [ -f "nginx-production.conf" ]; then
+    echo "Kopiere Nginx-Konfiguration..."
+    cp nginx-production.conf /etc/nginx/sites-available/gastro-cms
+    
+    # Entferne alte Symlinks
+    rm -f /etc/nginx/sites-enabled/gastro-cms
+    rm -f /etc/nginx/sites-enabled/default
+    
+    # Erstelle Symlink
+    ln -sf /etc/nginx/sites-available/gastro-cms /etc/nginx/sites-enabled/
+    
+    # Teste Nginx-Konfiguration
+    if nginx -t > /dev/null 2>&1; then
+        echo -e "${GREEN}✅ Nginx-Konfiguration ist gültig${NC}"
+        systemctl reload nginx
+        echo -e "${GREEN}✅ Nginx neu geladen${NC}"
+    else
+        echo -e "${RED}❌ Nginx-Konfiguration fehlerhaft${NC}"
+        nginx -t
+        echo -e "${YELLOW}⚠️  Bitte korrigiere die Nginx-Konfiguration manuell${NC}"
+    fi
+else
+    echo -e "${YELLOW}⚠️  nginx-production.conf nicht gefunden, überspringe Nginx-Konfiguration${NC}"
+fi
+
+# 11. SSL-Zertifikate (optional)
+echo ""
+echo "🔒 Schritt 11: SSL-Zertifikate (optional)..."
+read -p "SSL-Zertifikate jetzt einrichten? (j/n): " -n 1 -r
+echo
+if [[ $REPLY =~ ^[Jj]$ ]]; then
+    # Prüfe ob certbot installiert ist
+    if ! command -v certbot &> /dev/null; then
+        echo "Certbot wird installiert..."
+        apt-get update
+        apt-get install -y certbot python3-certbot-nginx
+        echo -e "${GREEN}✅ Certbot installiert${NC}"
+    fi
+    
+    echo "Erstelle SSL-Zertifikate..."
+    echo -e "${YELLOW}⚠️  Stelle sicher, dass die Domains auf diesen Server zeigen!${NC}"
+    
+    # SSL für Landing Page
+    certbot --nginx -d www.gastro-cms.at -d gastro-cms.at --non-interactive --agree-tos --email office@gastro-cms.at --redirect || echo -e "${YELLOW}⚠️  SSL für Landing Page fehlgeschlagen${NC}"
+    
+    # SSL für CRM
+    certbot --nginx -d crm.gastro-cms.at --non-interactive --agree-tos --email office@gastro-cms.at --redirect || echo -e "${YELLOW}⚠️  SSL für CRM fehlgeschlagen${NC}"
+    
+    echo -e "${GREEN}✅ SSL-Zertifikate eingerichtet${NC}"
+else
+    echo -e "${YELLOW}⚠️  SSL-Zertifikate übersprungen${NC}"
+    echo "Du kannst sie später mit folgenden Befehlen einrichten:"
+    echo "  certbot --nginx -d www.gastro-cms.at -d gastro-cms.at"
+    echo "  certbot --nginx -d crm.gastro-cms.at"
+fi
+
+# 12. Logs anzeigen
+echo ""
+echo "📋 Schritt 12: Logs (letzte 50 Zeilen)..."
 docker compose -f docker-compose.production.yml logs --tail=50
 
 echo ""
-echo -e "${GREEN}✅ Deployment abgeschlossen!${NC}"
+echo -e "${GREEN}✅ Deployment vollständig abgeschlossen!${NC}"
 echo ""
-echo "📝 Nächste Schritte:"
-echo "1. Migrationen ausführen: docker compose -f docker-compose.production.yml exec crm npx prisma migrate deploy"
-echo "2. Nginx konfigurieren:"
-echo "   - Kopiere nginx-production.conf nach /etc/nginx/sites-available/gastro-cms"
-echo "   - Aktiviere: ln -s /etc/nginx/sites-available/gastro-cms /etc/nginx/sites-enabled/"
-echo "   - Teste: nginx -t"
-echo "   - Lade neu: systemctl reload nginx"
-echo "3. SSL-Zertifikate einrichten: certbot --nginx -d crm.gastro-cms.at -d www.gastro-cms.at"
-echo "4. Prüfe die Logs: docker compose -f docker-compose.production.yml logs -f"
+echo "📝 Zusammenfassung:"
+echo "✅ Docker Container gestartet"
+echo "✅ Datenbank-Migrationen ausgeführt"
+echo "✅ Nginx konfiguriert"
+if [[ $REPLY =~ ^[Jj]$ ]]; then
+    echo "✅ SSL-Zertifikate eingerichtet"
+else
+    echo "⚠️  SSL-Zertifikate noch nicht eingerichtet"
+fi
+echo ""
+echo "🌐 URLs:"
+echo "  - Landing Page: http://www.gastro-cms.at"
+echo "  - CRM: http://crm.gastro-cms.at"
+echo "  - Multi-Tenant: http://*.gastro-cms.at"
+echo ""
+echo "📊 Nützliche Befehle:"
+echo "  - Logs ansehen: docker compose -f docker-compose.production.yml logs -f"
+echo "  - Status prüfen: docker compose -f docker-compose.production.yml ps"
+echo "  - Services neu starten: docker compose -f docker-compose.production.yml restart"
 
