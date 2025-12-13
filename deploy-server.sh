@@ -262,14 +262,20 @@ else
 fi
 
 # Setze DATABASE_URL im Container für Prisma
-if docker compose -f docker-compose.production.yml exec -T -e DATABASE_URL="$DATABASE_URL" crm npx prisma migrate deploy 2>&1; then
+# Verwende sh -c um die Umgebungsvariable korrekt zu setzen
+if docker compose -f docker-compose.production.yml exec -T crm sh -c "export DATABASE_URL='$DATABASE_URL' && npx prisma migrate deploy" 2>&1; then
     echo -e "${GREEN}✅ Migrationen erfolgreich ausgeführt${NC}"
 else
     echo -e "${YELLOW}⚠️  Migrationen fehlgeschlagen, versuche db push...${NC}"
-    docker compose -f docker-compose.production.yml exec -T -e DATABASE_URL="$DATABASE_URL" crm npx prisma db push --accept-data-loss 2>&1 || {
+    docker compose -f docker-compose.production.yml exec -T crm sh -c "export DATABASE_URL='$DATABASE_URL' && npx prisma db push --accept-data-loss" 2>&1 || {
         echo -e "${RED}❌ Datenbank-Push fehlgeschlagen${NC}"
         echo -e "${YELLOW}⚠️  Bitte prüfe die Datenbank manuell${NC}"
         echo -e "${YELLOW}   DATABASE_URL: postgresql://${POSTGRES_USER}:***@db:5432/gastro_cms_multi${NC}"
+        echo ""
+        echo "🔍 Debug-Informationen:"
+        echo "   POSTGRES_USER: ${POSTGRES_USER}"
+        echo "   Versuche manuelle Verbindung..."
+        docker compose -f docker-compose.production.yml exec -T db psql -U "$POSTGRES_USER" -d gastro_cms_multi -c "SELECT version();" || echo "   ❌ Manuelle Verbindung fehlgeschlagen"
     }
 fi
 
