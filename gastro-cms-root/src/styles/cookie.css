@@ -1,0 +1,263 @@
+/**
+ * Cookie-Banner Styling für Gastro CMS
+ * DSGVO-konform, barrierefrei und responsive
+ */
+
+/* Cookie-Banner Overlay */
+.cookie-banner-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+/* Cookie-Banner Modal */
+.cookie-banner-modal {
+  background: white;
+  border-radius: 0.5rem;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  max-width: 32rem;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+}
+
+/* Re-Open Button */
+.cookie-reopen-button {
+  position: fixed;
+  bottom: 1rem;
+  right: 1rem;
+  z-index: 40;
+  background-color: #2563eb;
+  color: white;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  transition: background-color 0.2s;
+  border: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.cookie-reopen-button:hover {
+  background-color: #1d4ed8;
+}
+
+.cookie-reopen-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.5);
+}
+
+/* Focus-Trap für Accessibility */
+.cookie-banner-modal:focus-within {
+  outline: none;
+}
+
+/* Button-Styling */
+.cookie-button {
+  font-weight: 500;
+  padding: 0.5rem 1rem;
+  border-radius: 0.5rem;
+  transition: all 0.2s;
+  border: none;
+  cursor: pointer;
+  font-size: 0.875rem;
+  line-height: 1.25rem;
+}
+
+.cookie-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+}
+
+.cookie-button-primary {
+  background-color: #2563eb;
+  color: white;
+}
+
+.cookie-button-primary:hover {
+  background-color: #1d4ed8;
+}
+
+.cookie-button-secondary {
+  background-color: #6b7280;
+  color: white;
+}
+
+.cookie-button-secondary:hover {
+  background-color: #4b5563;
+}
+
+.cookie-button-success {
+  background-color: #059669;
+  color: white;
+}
+
+.cookie-button-success:hover {
+  background-color: #047857;
+}
+
+.cookie-button-light {
+  background-color: #e5e7eb;
+  color: #374151;
+}
+
+.cookie-button-light:hover {
+  background-color: #d1d5db;
+}
+
+/* Checkbox-Styling */
+.cookie-checkbox {
+  width: 1rem;
+  height: 1rem;
+  color: #2563eb;
+  background-color: #f3f4f6;
+  border: 1px solid #d1d5db;
+  border-radius: 0.25rem;
+  cursor: pointer;
+}
+
+.cookie-checkbox:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.5);
+}
+
+.cookie-checkbox:checked {
+  background-color: #2563eb;
+  border-color: #2563eb;
+}
+
+.cookie-checkbox:disabled {
+  background-color: #f3f4f6;
+  border-color: #d1d5db;
+  cursor: not-allowed;
+}
+
+/* Link-Styling */
+.cookie-link {
+  color: #2563eb;
+  text-decoration: underline;
+  transition: color 0.2s;
+}
+
+.cookie-link:hover {
+  color: #1d4ed8;
+}
+
+.cookie-link:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.5);
+  border-radius: 0.25rem;
+}
+
+/* Responsive Design */
+@media (max-width: 640px) {
+  .cookie-banner-overlay {
+    padding: 0.5rem;
+  }
+  
+  .cookie-banner-modal {
+    max-width: 100%;
+    margin: 0;
+  }
+  
+  .cookie-reopen-button {
+    bottom: 0.5rem;
+    right: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.75rem;
+  }
+}
+
+/* Dark Mode Support */
+@media (prefers-color-scheme: dark) {
+  .cookie-banner-modal {
+    background-color: #1f2937;
+    color: #f9fafb;
+  }
+  
+  .cookie-button-light {
+    background-color: #374151;
+    color: #f9fafb;
+  }
+  
+  .cookie-button-light:hover {
+    background-color: #4b5563;
+  }
+  
+  .cookie-checkbox {
+    background-color: #374151;
+    border-color: #4b5563;
+  }
+}
+
+/* Animation für Banner-Erscheinen */
+@keyframes cookie-banner-fade-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.cookie-banner-modal {
+  animation: cookie-banner-fade-in 0.3s ease-out;
+}
+
+/* Scrollbar-Styling für Details-Bereich */
+.cookie-details::-webkit-scrollbar {
+  width: 6px;
+}
+
+.cookie-details::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 3px;
+}
+
+.cookie-details::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 3px;
+}
+
+.cookie-details::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* High Contrast Mode Support */
+@media (prefers-contrast: high) {
+  .cookie-banner-modal {
+    border: 2px solid #000;
+  }
+  
+  .cookie-button {
+    border: 2px solid currentColor;
+  }
+  
+  .cookie-checkbox {
+    border-width: 2px;
+  }
+}
+
+/* Reduced Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  .cookie-banner-modal {
+    animation: none;
+  }
+  
+  .cookie-button,
+  .cookie-reopen-button {
+    transition: none;
+  }
+}

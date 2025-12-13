@@ -1,0 +1,34 @@
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+      - PORT=3000
+      - DATABASE_URL=postgresql://gR%230%40r3d%40LDdihna:v2EqGEioll3eT%21YK%40dy5n0KbNdHtLRPZ@db:5432/gastrocms?schema=public
+    ports:
+      - "3000:3000"
+    depends_on:
+      - db
+    restart: unless-stopped
+
+  db:
+    image: postgres:15-alpine
+    environment:
+      - POSTGRES_DB=gastrocms
+      - POSTGRES_USER=gR#0@r3d@LDdihna
+      - POSTGRES_PASSWORD=v2EqGEioll3eT!YK@dy5n0KbNdHtLRPZ
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+
+volumes:
+  pgdata:
+

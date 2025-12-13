@@ -1,0 +1,31 @@
+{
+  "nav": {
+    "home": "Startseite",
+    "features": "Features",
+    "pricing": "Preise",
+    "faq": "FAQ",
+    "contact": "Kontakt",
+    "order": "Bestellen"
+  },
+  "hero": {
+    "title": "Gastro CMS 3.0",
+    "subtitle": "Nur 10% Provision statt bis zu 30%",
+    "description": "Günstige Lieferservice-Software für Restaurants, Lebensmittelhändler, Obsthändler und mehr. Jährlich €180 + eigene Domain.",
+    "cta": "Jetzt bestellen"
+  },
+  "features": {
+    "title": "Warum Gastro CMS 3.0?",
+    "subtitle": "Entdecke die Vorteile",
+    "feature1": "Nur 10% Provision",
+    "feature2": "Eigene Domain",
+    "feature3": "Modernes Design"
+  },
+  "order": {
+    "title": "Gastro CMS 3.0 bestellen",
+    "step1": "Geschäftsinformationen",
+    "step2": "Lieferservice Informationen",
+    "step3": "Domain-Informationen",
+    "step4": "Rechtliches und Bezahlung"
+  }
+}
+

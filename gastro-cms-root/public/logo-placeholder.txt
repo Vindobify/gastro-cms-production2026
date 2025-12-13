@@ -1,0 +1,17 @@
+LOGO PLATZHALTER
+================
+
+Um dein eigenes Logo hinzuzufügen:
+
+1. Erstelle eine PNG-Datei mit deinem Logo
+2. Benenne sie "logo.png" 
+3. Speichere sie in diesem Verzeichnis: /public/logo.png
+4. Das Logo sollte idealerweise 32px hoch sein (oder ein Vielfaches davon)
+5. Transparenter Hintergrund funktioniert am besten
+
+Das System wird automatisch:
+- Dein Logo anzeigen, wenn es existiert
+- Einen Fallback-Text "🍕 Gastro CMS 3.0" anzeigen, wenn kein Logo vorhanden ist
+
+Unterstützte Formate: PNG, JPG, SVG, WebP
+Empfohlene Größe: 32px Höhe, beliebige Breite

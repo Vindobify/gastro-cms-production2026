@@ -1,0 +1,22 @@
+# Dependencies / build
+node_modules
+.next
+out
+
+# VCS / config
+.git
+.gitignore
+
+# Logs & env
+*.log
+.env*
+server.log
+
+# Local data / archives
+data/
+*.tar.gz
+
+# OS
+*.DS_Store
+
+

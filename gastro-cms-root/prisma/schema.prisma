@@ -1,0 +1,102 @@
+// Prisma Schema for Gastro CMS Root
+// Shared Database with gastro-crm
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ------------------------------------------
+// CONTACT REQUESTS
+// ------------------------------------------
+
+model ContactRequest {
+  id          Int      @id @default(autoincrement())
+  name        String
+  email       String
+  phone       String?
+  message     String
+  status      String   @default("NEW") // NEW, IN_PROGRESS, RESOLVED
+  notes       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("contact_requests")
+}
+
+// ------------------------------------------
+// ORDER REQUESTS
+// ------------------------------------------
+
+model OrderRequest {
+  id                  Int      @id @default(autoincrement())
+  // Geschäftsinformationen
+  businessType        String
+  restaurantName      String
+  ownerName           String
+  email               String
+  phone               String
+  address             String
+  postalCode          String
+  city                String
+  
+  // Lieferservice Informationen
+  hasDeliveryService  Boolean
+  deliveryServiceName String?
+  monthlyRevenue      Decimal?
+  deliveryPercentage  Decimal? // Prozentsatz des Kunden
+  calculatedSavings  Decimal? // Berechnete Ersparnis
+  
+  // Domain Informationen
+  hasDomain           Boolean
+  existingDomain      String?
+  desiredDomain       String?
+  
+  // Rechtliches
+  acceptedTerms       Boolean
+  acceptedPrivacy     Boolean
+  acceptedAV          Boolean
+  
+  // Status & Payment
+  status              String   @default("PENDING") // PENDING, PAID, CONVERTED, CANCELLED
+  paymentAmount       Decimal  @default(0)
+  stripeSessionId    String?
+  convertedToTenantId String?  // Referenz zum Tenant, wenn umgewandelt
+  
+  notes               String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+  
+  @@map("order_requests")
+}
+
+// ------------------------------------------
+// APPOINTMENTS
+// ------------------------------------------
+
+model Appointment {
+  id              Int      @id @default(autoincrement())
+  businessType    String
+  restaurantName  String
+  firstName       String
+  lastName        String
+  email           String
+  phone           String
+  appointmentType String   // "online" oder "lokal"
+  date            DateTime
+  time            String
+  address         String?
+  postalCode      String?
+  city            String?
+  message         String?
+  status          String   @default("PENDING") // PENDING, CONFIRMED, COMPLETED, CANCELLED
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@map("appointments")
+}
+

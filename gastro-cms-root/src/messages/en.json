@@ -1,0 +1,31 @@
+{
+  "nav": {
+    "home": "Home",
+    "features": "Features",
+    "pricing": "Pricing",
+    "faq": "FAQ",
+    "contact": "Contact",
+    "order": "Order"
+  },
+  "hero": {
+    "title": "Gastro CMS 3.0",
+    "subtitle": "Only 10% commission instead of up to 30%",
+    "description": "Affordable delivery service software for restaurants, grocery stores, fruit vendors and more. €180 per year + own domain.",
+    "cta": "Order now"
+  },
+  "features": {
+    "title": "Why Gastro CMS 3.0?",
+    "subtitle": "Discover the benefits",
+    "feature1": "Only 10% commission",
+    "feature2": "Own domain",
+    "feature3": "Modern design"
+  },
+  "order": {
+    "title": "Order Gastro CMS 3.0",
+    "step1": "Business Information",
+    "step2": "Delivery Service Information",
+    "step3": "Domain Information",
+    "step4": "Legal and Payment"
+  }
+}
+
