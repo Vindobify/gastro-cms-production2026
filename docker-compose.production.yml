@@ -46,9 +46,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    ports:
+      - "127.0.0.1:3002:3000"  # Multi-Tenant auf Port 3002
     restart: unless-stopped
-    # Healthcheck optional - Next.js hat standardmäßig keinen /api/health Endpoint
-    # Kann entfernt werden oder durch eigenen Health-Check-Endpoint ersetzt werden
     networks:
       - gastro-network
 
