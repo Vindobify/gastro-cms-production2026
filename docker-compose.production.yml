@@ -1,0 +1,134 @@
+version: "3.9"
+
+# ⚠️ WICHTIG: Diese Datei ist für Production-Deployment mit Docker Compose
+# Coolify verwendet normalerweise KEINE docker-compose.yml, sondern erstellt Container direkt aus Dockerfiles
+# Diese Datei ist für den Fall, dass du Docker Compose auf einem eigenen Server verwenden möchtest
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: gastro-cms-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-gastrocms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-CHANGE_ME_SECURE_PASSWORD}
+      POSTGRES_DB: gastro_cms_multi
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gastrocms}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gastro-network
+
+  multi:
+    build:
+      context: ./gastro-cms-multi
+      dockerfile: Dockerfile
+    container_name: gastro-cms-multi
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-gastrocms}:${POSTGRES_PASSWORD:-CHANGE_ME_SECURE_PASSWORD}@db:5432/gastro_cms_multi?schema=public
+      JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_JWT_SECRET_MIN_32_CHARS}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-https://www.gastro-cms.at}
+      CRM_URL: ${CRM_URL:-https://crm.gastro-cms.at}
+      # SMTP/Brevo (optional)
+      SMTP_HOST: ${SMTP_HOST:-smtp-relay.brevo.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-office@gastro-cms.at}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    # Healthcheck optional - Next.js hat standardmäßig keinen /api/health Endpoint
+    # Kann entfernt werden oder durch eigenen Health-Check-Endpoint ersetzt werden
+    networks:
+      - gastro-network
+
+  crm:
+    build:
+      context: ./gastro-crm
+      dockerfile: Dockerfile
+    container_name: gastro-crm
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-gastrocms}:${POSTGRES_PASSWORD:-CHANGE_ME_SECURE_PASSWORD}@db:5432/gastro_cms_multi?schema=public
+      JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_JWT_SECRET_MIN_32_CHARS}
+      NEXTAUTH_URL: ${NEXTAUTH_URL:-https://crm.gastro-cms.at}
+      # Stripe Connect (LIVE KEYS!)
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-sk_live_...}
+      STRIPE_PUBLISHABLE_KEY: ${STRIPE_PUBLISHABLE_KEY:-pk_live_...}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-whsec_...}
+      STRIPE_CLIENT_ID: ${STRIPE_CLIENT_ID:-}
+      NEXT_PUBLIC_APP_URL: ${NEXT_PUBLIC_APP_URL:-https://crm.gastro-cms.at}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    # Healthcheck optional - Next.js hat standardmäßig keinen /api/health Endpoint
+    networks:
+      - gastro-network
+
+  root:
+    build:
+      context: ./gastro-cms-root
+      dockerfile: Dockerfile
+    container_name: gastro-cms-root
+    environment:
+      NODE_ENV: production
+      PORT: 3000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-gastrocms}:${POSTGRES_PASSWORD:-CHANGE_ME_SECURE_PASSWORD}@db:5432/gastro_cms_multi?schema=public
+      # SMTP/Brevo
+      SMTP_HOST: ${SMTP_HOST:-smtp-relay.brevo.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      SMTP_FROM: ${SMTP_FROM:-office@gastro-cms.at}
+      # CRM URL
+      CRM_API_URL: ${CRM_API_URL:-https://crm.gastro-cms.at}
+      NEXT_PUBLIC_CRM_API_URL: ${NEXT_PUBLIC_CRM_API_URL:-https://crm.gastro-cms.at}
+      # Stripe (optional, LIVE KEYS!)
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: ${NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+    # Healthcheck optional - Next.js hat standardmäßig keinen /api/health Endpoint
+    networks:
+      - gastro-network
+
+  # Nginx Reverse Proxy (optional - kann auch durch externen Load Balancer ersetzt werden)
+  proxy:
+    image: nginx:alpine
+    container_name: gastro-cms-proxy
+    volumes:
+      - ./proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+      - "443:443"
+    depends_on:
+      - multi
+      - crm
+      - root
+    restart: unless-stopped
+    networks:
+      - gastro-network
+
+volumes:
+  db_data:
+    driver: local
+
+networks:
+  gastro-network:
+    driver: bridge
+

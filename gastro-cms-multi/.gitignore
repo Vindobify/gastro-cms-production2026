@@ -1,0 +1,75 @@
+# Dependencies
+/node_modules
+/.pnp
+.pnp.js
+.yarn/install-state.gz
+
+# Next.js
+/.next/
+/out/
+
+# Production builds
+/build
+
+# Environment variables
+.env
+.env*.local
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Local development
+.vercel
+
+# Docker
+docker-compose.override.yml
+.env.production
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# SQLite Database (for production, you might want to include the db file)
+*.db
+*.db-journal
+# But include the production template
+!prisma/production-template.db
+
+# Logs
+logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# Cache
+.cache/
+
+# Misc
+cookies.txt
+*.backup
+
+# Backup files
+*.bak
+*.orig
+SICHERHEITSBERICHT.md
+dokploy.jsonrelease/
+release/

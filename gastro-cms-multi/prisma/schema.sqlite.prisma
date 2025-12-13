@@ -1,0 +1,719 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Product {
+  id            Int      @id @default(autoincrement())
+  articleNumber String?  @unique // Artikelnummer aus CSV-Import
+  name          String
+  description   String?
+  price         Decimal?
+  taxRate       Decimal  @default(0.20) // MwSt.-Satz (0.10, 0.20, 0.00)
+  categoryId    Int?
+  category      Category? @relation(fields: [categoryId], references: [id])
+  allergens     String? // JSON-String von Allergen-Codes (z.B. "['A', 'B', 'C']")
+  sortOrder     Int      @default(0) // Sortierreihenfolge
+  isActive      Boolean  @default(true) // Aktiv/Inaktiv Status
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Beziehungen
+  orderItems  OrderItem[]
+  productExtras ProductExtra[]
+  coupons     Coupon[]  // Gutscheine für dieses Produkt
+  cartItems   CartItem[] // Temporäre Warenkorb-Items
+  
+  @@map("products")
+}
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  name        String
+  slug        String   @unique // URL-friendly identifier for direct linking
+  description String?
+  image       String?
+  icon        String?  // Food icon identifier (e.g., "pizza", "pasta", "burger")
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Beziehungen
+  products    Product[]
+  categoryExtras CategoryExtra[]
+  coupons     Coupon[]  // Gutscheine für diese Kategorie
+  
+  @@map("categories")
+}
+
+model ExtraGroup {
+  id            Int      @id @default(autoincrement())
+  name          String
+  description   String?
+  selectionType String   @default("CHECKBOX") // CHECKBOX, RADIO
+  isRequired    Boolean  @default(false)
+  maxSelections Int?     // Maximale Anzahl auswählbarer Extras (null = unbegrenzt)
+  minSelections Int      @default(1) // Minimale Anzahl auswählbarer Extras
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Beziehungen
+  extraItems    ExtraItem[]
+  categoryExtras CategoryExtra[]
+  productExtras ProductExtra[]
+  
+  @@map("extra_groups")
+}
+
+model ExtraItem {
+  id           Int        @id @default(autoincrement())
+  name         String
+  price        Decimal
+  isFree       Boolean    @default(false) // Markiert das Extra als kostenlos
+  extraGroupId Int
+  extraGroup   ExtraGroup @relation(fields: [extraGroupId], references: [id], onDelete: Cascade)
+  
+  @@map("extra_items")
+}
+
+model CategoryExtra {
+  id           Int        @id @default(autoincrement())
+  categoryId   Int
+  extraGroupId Int
+  category     Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  extraGroup   ExtraGroup @relation(fields: [extraGroupId], references: [id], onDelete: Cascade)
+  
+  @@unique([categoryId, extraGroupId])
+  @@map("category_extras")
+}
+
+model ProductExtra {
+  id           Int        @id @default(autoincrement())
+  productId    Int
+  extraGroupId Int
+  isActive     Boolean    @default(true)
+  sortOrder    Int        @default(0) // Sortierung der Extras pro Produkt
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  extraGroup   ExtraGroup @relation(fields: [extraGroupId], references: [id], onDelete: Cascade)
+  
+  @@unique([productId, extraGroupId])
+  @@map("product_extras")
+}
+
+// Authentifizierung und Benutzerverwaltung
+model User {
+  id            Int      @id @default(autoincrement())
+  email         String   @unique
+  password      String   // Gehashed
+  role          UserRole @default(CUSTOMER)
+  isActive      Boolean  @default(true)
+  emailVerified Boolean  @default(false)
+  lastLoginAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  // Beziehungen
+  profile       UserProfile?
+  sessions      Session[]
+  customers     Customer[] // Ein User kann mehrere Customers haben
+  deliveryDriver DeliveryDriver? // Neue Beziehung zu Lieferant
+  
+  @@map("users")
+}
+
+model UserProfile {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique
+  firstName   String
+  lastName    String
+  phone       String?
+  address     String?
+  city        String?
+  postalCode  String?
+  country     String   @default("Österreich")
+  avatar      String?  // Profilbild-URL
+  preferences String?    // Benutzereinstellungen als JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Beziehungen
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("user_profiles")
+}
+
+model Session {
+  id            Int      @id @default(autoincrement())
+  sessionId     String   @unique // Eindeutige Session-ID für JWT
+  userId        Int
+  role          String   // Benutzerrolle zum Zeitpunkt der Session
+  token         String   // JWT-Tokens als String
+  expiresAt     DateTime
+  lastActivity  DateTime @default(now()) // Letzte Aktivität
+  sessionStart  DateTime @default(now()) // Session-Start
+  userAgent     String?
+  ipAddress     String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([sessionId])
+}
+
+// Erweiterte Customer-Tabelle für Kunden (Frontend)
+model Customer {
+  id        Int      @id @default(autoincrement())
+  userId    Int?     // Verknüpfung mit User-Tabelle (optional, nicht unique)
+  firstName String
+  lastName  String
+  email     String   @unique
+  phone     String?
+  address   String?
+  city      String?
+  postalCode String?
+  country   String   @default("Österreich")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  // Beziehungen
+  user      User?    @relation(fields: [userId], references: [id])
+  orders    Order[]
+  carts     Cart[]   // Temporäre Warenkörbe
+  
+  // Neue Beziehungen für Gutscheine
+  couponUsages      CouponUsage[]
+  couponAssignments CouponCustomer[]
+  
+  @@map("customers")
+}
+
+model Order {
+  id            Int         @id @default(autoincrement())
+  orderNumber   String      @unique
+  customerId    Int
+  customer      Customer    @relation(fields: [customerId], references: [id])
+  deliveryDriverId Int?     // Neue Beziehung zu Lieferant
+  deliveryDriver DeliveryDriver? @relation(fields: [deliveryDriverId], references: [id])
+  orderItems    OrderItem[]
+  totalAmount   Decimal
+  totalAmountNet Decimal
+  totalTax      Decimal
+  deliveryType  String      @default("PICKUP") // PICKUP, DELIVERY
+  deliveryTime  DateTime?   // Gewünschte Lieferzeit
+  status        String      @default("PENDING") // PENDING, CONFIRMED, PREPARING, READY, OUT_FOR_DELIVERY, DELIVERED, CANCELLED
+  notes         String?
+  
+  // Trinkgeld-Felder
+  tipAmount     Decimal?    @default(0) // Trinkgeld-Betrag
+  tipPercentage Decimal?    // Trinkgeld-Prozentsatz (falls prozentual)
+  tipType       String?     @default("FIXED") // FIXED, PERCENTAGE
+  tipPaid       Boolean     @default(false) // Ob Trinkgeld bereits an Lieferant ausgezahlt wurde
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  // Neue Beziehungen für Gutscheine
+  couponUsages  CouponUsage[]
+  deliveryStats DeliveryStats[]
+}
+
+model OrderItem {
+  id        Int      @id @default(autoincrement())
+  orderId   Int
+  productId Int
+  extraIds  String? // JSON Array der Extra-IDs
+  quantity  Int      @default(1)
+  unitPrice Decimal
+  totalPrice Decimal
+  taxRate   Decimal  @default(0.20) // Steuersatz zum Zeitpunkt der Bestellung
+  order     Order    @relation(fields: [orderId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+  
+  @@map("order_items")
+}
+
+// Temporäre Warenkörbe (werden nach Bestellabschluss gelöscht)
+model Cart {
+  id            String   @id @default(cuid()) // Eindeutige Session-ID
+  customerId    Int?     // Optional: Verknüpfung mit Kunde (falls eingeloggt)
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  items         CartItem[]
+  totalItems    Int      @default(0)
+  totalPrice    Decimal  @default(0)
+  appliedCouponId Int?   // Optional: Angewandter Gutschein
+  appliedCoupon Coupon?  @relation(fields: [appliedCouponId], references: [id])
+  discountAmount Decimal @default(0)
+  subtotalAfterDiscount Decimal @default(0)
+  subtotalNet   Decimal  @default(0)
+  totalTax      Decimal  @default(0)
+  taxBreakdown  String?  // JSON mit Steueraufschlüsselung
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  expiresAt     DateTime // Automatische Löschung nach 24 Stunden
+  
+  @@map("carts")
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id])
+  name      String   // Produktname zum Zeitpunkt der Hinzufügung
+  description String? // Produktbeschreibung zum Zeitpunkt der Hinzufügung
+  price     Decimal  // Preis zum Zeitpunkt der Hinzufügung
+  quantity  Int      @default(1)
+  extras    String?  // JSON Array der Extras
+  totalPrice Decimal // Gesamtpreis (Preis + Extras) * Menge
+  taxRate   Decimal  @default(0.20) // Steuersatz zum Zeitpunkt der Hinzufügung
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("cart_items")
+}
+
+model Allergen {
+  id          Int      @id @default(autoincrement())
+  name        String
+  description String?
+  icon        String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("allergens")
+}
+
+model TaxRate {
+  id          Int      @id @default(autoincrement())
+  name        String
+  rate        Decimal  // z.B. 0.20 für 20%
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("tax_rates")
+}
+
+model RestaurantSettings {
+  id                    Int      @id @default(autoincrement())
+  restaurantName        String
+  address               String?
+  city                  String?
+  postalCode            String?
+  phone                 String?
+  email                 String?
+  atuNumber             String?  // ATU-Nummer (UID-Nummer) - gesetzlich erforderlich
+  fnNumber              String?  // FN-Nummer (Firmenbuchnummer) - gesetzlich erforderlich
+  logo                  String?  // Logo-URL (wird im Header angezeigt)
+  favicon               String?  // Favicon-URL (wird im Browser-Tab angezeigt)
+  openingHoursData      Json?    // JSON für Öffnungszeiten pro Tag
+  orderDeadline         String?  // Bestellschluss (z.B. "22:00")
+  deliveryDistricts     String?  // JSON Array der Wiener Bezirke (z.B. ["1120", "1130", "1140"])
+  minOrderAmount        Decimal?
+  deliveryFee           Decimal?
+  freeDeliveryThreshold Decimal?
+  defaultTaxRate        Decimal?
+  currency              String?  @default("EUR")
+  timezone              String?  @default("Europe/Vienna")
+  
+  // SEO Settings
+  metaTitle             String?
+  metaDescription       String?
+  ogImage               String?
+  robotsTxt             String?
+  googleAnalyticsId     String?
+  googleTagManagerId    String?
+  facebookPixelId       String?
+  structuredDataEnabled Boolean  @default(true)
+  sitemapEnabled        Boolean  @default(true)
+  
+  // Legal Content (Rechtliche Inhalte)
+  impressumContent      String?  // Impressum-Inhalt (HTML)
+  agbContent            String?  // AGB-Inhalt (HTML)
+  datenschutzContent    String?  // Datenschutz-Inhalt (HTML)
+  impressumLastUpdated  DateTime?
+  agbLastUpdated        DateTime?
+  datenschutzLastUpdated DateTime?
+  
+  // Maintenance Mode
+  maintenanceMode       Boolean  @default(false)
+  maintenanceMessage    String?  // Benutzerdefinierte Wartungsnachricht
+  maintenanceTitle      String?  // Titel für Wartungsseite
+  
+  // Design System
+  selectedTheme         String?  @default("classic-elegant") // Ausgewähltes Theme
+  customColors          Json?    // JSON mit benutzerdefinierten Farben
+  customFonts           Json?    // JSON mit benutzerdefinierten Schriftarten
+  customSpacing         Json?    // JSON mit benutzerdefinierten Abständen
+  customComponents      Json?    // JSON mit Komponenten-Einstellungen
+  darkModeEnabled       Boolean  @default(false) // Dark Mode aktiviert
+  darkModeColors        Json?    // JSON mit Dark Mode Farben
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  @@map("restaurant_settings")
+}
+
+model DeliveryTime {
+  id          Int      @id @default(autoincrement())
+  dayOfWeek   Int      // 0 = Sonntag, 1 = Montag, etc.
+  startTime   String   // Format: "HH:MM"
+  endTime     String   // Format: "HH:MM"
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("delivery_times")
+}
+
+// Gutschein-System
+model Coupon {
+  id                    Int      @id @default(autoincrement())
+  code                  String   @unique // z.B. "FRÜHLING20"
+  name                  String   // Anzeigename
+  description           String?
+  discountType          String   // PERCENTAGE, FIXED_AMOUNT, PRODUCT_SPECIFIC, FREE_DELIVERY
+  discountValue         Decimal  // 20.00 für 20%, 10.00 für €10
+  minimumOrderAmount    Decimal?
+  maximumDiscount       Decimal?  // Max. Rabatt bei Prozentrabatten
+  startDate             DateTime
+  endDate               DateTime
+  usageLimit            Int?     // Max. Gesamtverwendungen
+  usageCount            Int      @default(0)
+  perCustomerLimit      Int      @default(1) // Max. Verwendungen pro Kunde
+  isActive              Boolean  @default(true)
+  isPublic              Boolean  @default(true) // Öffentlich sichtbar oder nur für bestimmte Kunden
+  canCombine            Boolean  @default(false) // Mit anderen Gutscheinen kombinierbar
+  
+  // Neue Felder für direkte Kategorie/Produkt-Zuweisung
+  categoryId            Int?     // Gutschein nur für diese Kategorie
+  productId             Int?     // Gutschein nur für dieses Produkt
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  // Beziehungen
+  category              Category? @relation(fields: [categoryId], references: [id])
+  product               Product?  @relation(fields: [productId], references: [id])
+  restrictions          CouponRestriction[]
+  usages               CouponUsage[]
+  customerAssignments  CouponCustomer[]
+  carts                Cart[]    // Temporäre Warenkörbe mit diesem Gutschein
+  
+  @@map("coupons")
+}
+
+model CouponRestriction {
+  id                Int      @id @default(autoincrement())
+  couponId          Int
+  restrictionType   String   // CATEGORY, PRODUCT, CUSTOMER, DELIVERY_TIME, WEEKDAY
+  restrictionValue  String   // JSON oder String-Wert
+  restrictionOperator String @default("INCLUDE") // INCLUDE, EXCLUDE
+  createdAt         DateTime @default(now())
+  
+  // Beziehungen
+  coupon            Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  
+  @@map("coupon_restrictions")
+}
+
+model CouponUsage {
+  id             Int      @id @default(autoincrement())
+  couponId       Int
+  orderId        Int
+  customerId     Int
+  discountAmount Decimal
+  usedAt         DateTime @default(now())
+  
+  // Beziehungen
+  coupon         Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customer       Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  @@map("coupon_usages")
+}
+
+model CouponCustomer {
+  id           Int      @id @default(autoincrement())
+  couponId     Int
+  customerId   Int
+  usageCount   Int      @default(0)
+  lastUsedAt   DateTime?
+  createdAt    DateTime @default(now())
+  
+  // Beziehungen
+  coupon       Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  @@unique([couponId, customerId])
+  @@map("coupon_customers")
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+}
+
+enum UserRole {
+  ADMIN              // Vollzugriff auf Dashboard
+  RESTAURANT_MANAGER // Dashboard-Zugriff (eingeschränkt)
+  DELIVERY_DRIVER    // Lieferant (später implementiert)
+  CUSTOMER           // Frontend-Kunde
+  GUEST              // Nicht eingeloggter Benutzer
+}
+
+model DeliveryDriver {
+  id              Int      @id @default(autoincrement())
+  userId          Int      @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile         DeliveryDriverProfile?
+  isActive        Boolean  @default(true)
+  isAvailable     Boolean  @default(true)
+  currentLocation String?  // JSON-String mit lat/lng
+  lastLocationUpdate DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Beziehungen
+  assignedOrders  Order[]
+  deliveryStats   DeliveryStats[]
+  
+  @@map("delivery_drivers")
+}
+
+model DeliveryDriverProfile {
+  id                Int      @id @default(autoincrement())
+  deliveryDriverId  Int      @unique
+  deliveryDriver    DeliveryDriver @relation(fields: [deliveryDriverId], references: [id], onDelete: Cascade)
+  avatar            String?  // Profilbild-URL
+  phone             String?
+  workingHours      String   // JSON für Arbeitszeiten pro Tag
+  gpsEnabled        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@map("delivery_driver_profiles")
+}
+
+// Lieferstatistiken für Fahrer
+model DeliveryStats {
+  id                Int      @id @default(autoincrement())
+  deliveryDriverId  Int
+  deliveryDriver    DeliveryDriver @relation(fields: [deliveryDriverId], references: [id], onDelete: Cascade)
+  orderId           Int
+  order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  deliveryDate      DateTime // Datum der Lieferung
+  deliveryTime      Int?     // Lieferzeit in Minuten
+  distance          Decimal? // Entfernung in km
+  tipAmount         Decimal? // Trinkgeld
+  rating            Int?     // Bewertung 1-5
+  createdAt         DateTime @default(now())
+  
+  @@map("delivery_stats")
+  @@index([deliveryDriverId, deliveryDate])
+  @@index([deliveryDate])
+}
+
+// API Key Management für externe Integrationen
+model ApiUser {
+  id          Int      @id @default(autoincrement())
+  name        String   // Name der Integration (z.B. "POS System Hauptfiliale")
+  email       String   @unique
+  company     String?  // Firmenname
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Beziehungen
+  apiKeys     ApiKey[]
+  
+  @@map("api_users")
+}
+
+model ApiKey {
+  id              Int      @id @default(autoincrement())
+  name            String   // Beschreibender Name
+  keyHash         String   @unique // Gehashter API-Schlüssel
+  keyPrefix       String   // Erste 8 Zeichen für Anzeige (z.B. "ak_live_")
+  apiUserId       Int
+  apiUser         ApiUser  @relation(fields: [apiUserId], references: [id], onDelete: Cascade)
+  permissions     String     // JSON Array der Berechtigungen
+  isActive        Boolean  @default(true)
+  expiresAt       DateTime?
+  lastUsed        DateTime?
+  requestsPerHour Int      @default(1000)
+  requestsPerDay  Int      @default(10000)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  // Beziehungen
+  usageStats      ApiKeyUsage[]
+  
+  @@map("api_keys")
+}
+
+model ApiKeyUsage {
+  id              Int      @id @default(autoincrement())
+  apiKeyId        Int
+  apiKey          ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  endpoint        String   // API-Endpunkt
+  method          String   // HTTP-Methode
+  statusCode      Int      // HTTP-Status
+  responseTime    Int      // Antwortzeit in ms
+  ipAddress       String?
+  userAgent       String?
+  requestSize     Int?     // Request-Größe in Bytes
+  responseSize    Int?     // Response-Größe in Bytes
+  timestamp       DateTime @default(now())
+  
+  @@index([apiKeyId, timestamp])
+  @@map("api_key_usage")
+}
+
+// Audit Log für Sicherheitsereignisse
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  action      String   // Aktion (z.B. "LOGIN_FAILED", "API_KEY_CREATED")
+  userId      Int?     // Optional: Benutzer-ID
+  apiKeyId    Int?     // Optional: API-Key-ID
+  ipAddress   String?
+  userAgent   String?
+  details     String?    // Zusätzliche Details als JSON
+  severity    String   @default("INFO") // INFO, WARN, ERROR, CRITICAL
+  timestamp   DateTime @default(now())
+  
+  @@index([action, timestamp])
+  @@index([userId, timestamp])
+  @@map("audit_logs")
+}
+
+// Mediathek System für Asset-Management
+model AssetFolder {
+  id          Int      @id @default(autoincrement())
+  name        String
+  slug        String   @unique
+  description String?
+  parentId    Int?     // Für verschachtelte Ordner
+  parent      AssetFolder? @relation("FolderHierarchy", fields: [parentId], references: [id])
+  children    AssetFolder[] @relation("FolderHierarchy")
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdByUserId Int?
+  
+  // Beziehungen
+  assets      Asset[]
+  
+  @@map("asset_folders")
+}
+
+model Asset {
+  id              Int      @id @default(autoincrement())
+  storedPath      String   // Relativer Pfad: uploads/2025/08/uuid.jpg
+  originalName    String   // Original-Dateiname
+  title           String?  // Benutzerdefinierten Titel
+  alt             String?  // Alt-Text für Barrierefreiheit
+  description     String?
+  tags            String?  // JSON Array von Tags
+  ext             String   // Dateierweiterung (.jpg, .png, etc.)
+  mime            String   // MIME-Type (image/jpeg, etc.)
+  size            Int      // Dateigröße in Bytes
+  width           Int?     // Bildbreite (falls Bild)
+  height          Int?     // Bildhöhe (falls Bild)
+  folderId        Int?     // Optional: Zuordnung zu Ordner
+  folder          AssetFolder? @relation(fields: [folderId], references: [id])
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  createdByUserId Int?
+  
+  // Beziehungen
+  variants        AssetVariant[]
+  
+  @@index([folderId])
+  @@index([mime])
+  @@index([createdAt])
+  @@map("assets")
+}
+
+model AssetVariant {
+  id          Int      @id @default(autoincrement())
+  assetId     Int
+  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  variantType String   // thumb, cover, webp, small, medium, large
+  storedPath  String   // Pfad zur Variante
+  width       Int?
+  height      Int?
+  size        Int      // Dateigröße in Bytes
+  quality     Int?     // Qualitätsstufe (1-100)
+  createdAt   DateTime @default(now())
+  
+  @@unique([assetId, variantType])
+  @@map("asset_variants")
+}
+
+// Slideshow System für Marketing
+model Slideshow {
+  id          Int      @id @default(autoincrement())
+  title       String
+  description String?
+  backgroundImage String
+  headline    String
+  subheadline String?
+  buttonText  String?
+  buttonLink  String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  // Beziehungen
+  slideshowItems SlideshowItem[]
+  
+  @@map("slideshows")
+}
+
+model SlideshowItem {
+  id           Int       @id @default(autoincrement())
+  slideshowId  Int
+  itemType     String    // "PRODUCT" oder "COUPON"
+  itemId       Int       // ID des Produkts oder Gutscheins
+  title        String?   // Überschreibt den Standard-Titel
+  description  String?   // Überschreibt die Standard-Beschreibung
+  image        String?   // Überschreibt das Standard-Bild
+  isActive     Boolean   @default(true)
+  sortOrder    Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  // Beziehungen
+  slideshow    Slideshow @relation(fields: [slideshowId], references: [id], onDelete: Cascade)
+  
+  @@map("slideshow_items")
+}

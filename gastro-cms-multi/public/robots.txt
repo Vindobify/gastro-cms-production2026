@@ -1,0 +1,31 @@
+User-agent: *
+Allow: /
+
+# Sitemap
+Sitemap: /sitemap.xml
+
+# Crawl-delay for better server performance
+Crawl-delay: 1
+
+# Block admin areas
+Disallow: /dashboard/
+Disallow: /api/
+Disallow: /admin/
+Disallow: /_next/
+Disallow: /uploads/
+
+# Allow important pages
+Allow: /frontend/
+Allow: /speisekarte/
+Allow: /kategorie/
+Allow: /produkt/
+
+# Block search parameters
+Disallow: /*?*search=
+Disallow: /*?*filter=
+Disallow: /*?*sort=
+
+# Block duplicate content
+Disallow: /*?*utm_
+Disallow: /*?*fbclid=
+Disallow: /*?*gclid=

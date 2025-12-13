@@ -1,0 +1,476 @@
+/* ========================================
+   PROFESSIONAL RECEIPT STYLES - 80MM THERMO PRINTER
+   ======================================== */
+
+/* Print Styles - Optimized for 80mm Thermal Printers */
+@media print {
+  @page {
+    size: 80mm auto !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 80mm !important;
+    max-width: 80mm !important;
+    min-height: auto !important;
+    max-height: auto !important;
+  }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    box-sizing: border-box !important;
+  }
+
+  html, body {
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    font-family: 'Courier New', monospace !important;
+    font-size: 8px !important;
+    line-height: 0.9 !important;
+    color: #000 !important;
+    background: white !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+  }
+
+  .no-print {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+  }
+
+  /* Separate print styles for receipt only */
+  body.print-receipt-only #kitchen-only,
+  body.print-receipt-only .kitchen-ticket {
+    display: none !important;
+  }
+
+  /* Separate print styles for kitchen only */
+  body.print-kitchen-only #receipt-only,
+  body.print-kitchen-only .receipt {
+    display: none !important;
+  }
+
+  #receipt-container,
+  #receipt-only,
+  #kitchen-only {
+    width: 80mm !important;
+    max-width: 80mm !important;
+    margin: 0 !important;
+    padding: 1mm !important;
+    background: white !important;
+    font-family: 'Courier New', monospace !important;
+    font-size: 8px !important;
+    line-height: 0.9 !important;
+    color: #000 !important;
+    box-sizing: border-box !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .receipt,
+  .kitchen-ticket {
+    width: 76mm !important;
+    max-width: 76mm !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  .kitchen-ticket {
+    margin: 1mm 0 !important;
+    padding: 1mm !important;
+    background: white !important;
+    font-family: 'Courier New', monospace !important;
+    font-size: 8px !important;
+    line-height: 0.9 !important;
+    color: #000 !important;
+    border: 1px solid #000 !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Ensure content fits within page bounds */
+  .receipt, .kitchen-ticket {
+    page-break-inside: avoid !important;
+    overflow: visible !important;
+    height: auto !important;
+    min-height: auto !important;
+    max-height: none !important;
+  }
+
+  /* Ensure text wrapping for long content */
+  .receipt *, .kitchen-ticket * {
+    max-width: 100% !important;
+    word-wrap: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+}
+
+/* Base Receipt Styles */
+.receipt {
+  width: 80mm;
+  max-width: 80mm;
+  margin: 0 auto;
+  padding: 2px;
+  background: white;
+  font-family: 'Courier New', monospace;
+  font-size: 9px;
+  line-height: 1.0;
+  color: #000;
+  box-sizing: border-box;
+}
+
+/* Receipt Header */
+.receipt-header {
+  text-align: center;
+  padding: 2px 1px;
+  border-bottom: 1px dashed #000;
+  margin-bottom: 2px;
+  font-size: 9px;
+  line-height: 1.0;
+}
+
+.restaurant-name {
+  font-size: 12px;
+  font-weight: bold;
+  margin-bottom: 1px;
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+}
+
+.restaurant-info {
+  font-size: 8px;
+  line-height: 1.0;
+  margin-bottom: 1px;
+}
+
+.restaurant-contact {
+  font-size: 7px;
+  color: #666;
+}
+
+/* Order Info */
+.order-info {
+  padding: 2px 1px;
+  border-bottom: 1px dashed #000;
+  margin-bottom: 2px;
+  font-size: 8px;
+}
+
+.order-title {
+  font-size: 9px;
+  font-weight: bold;
+  text-align: center;
+  margin-bottom: 1px;
+  text-transform: uppercase;
+}
+
+.order-details {
+  display: flex;
+  justify-content: space-between;
+  font-size: 7px;
+  margin-bottom: 1px;
+}
+
+.order-number {
+  font-weight: bold;
+}
+
+/* Customer Info */
+.customer-info {
+  padding: 2px 1px;
+  border-bottom: 1px dashed #000;
+  margin-bottom: 2px;
+  font-size: 8px;
+}
+
+.customer-title {
+  font-size: 8px;
+  font-weight: bold;
+  margin-bottom: 1px;
+  text-transform: uppercase;
+}
+
+.customer-details {
+  font-size: 7px;
+  line-height: 1.0;
+}
+
+/* Items Section */
+.items-section {
+  margin-bottom: 2px;
+}
+
+.items-title {
+  font-size: 8px;
+  font-weight: bold;
+  margin-bottom: 1px;
+  text-transform: uppercase;
+  text-align: center;
+}
+
+.item {
+  padding: 1px 0;
+  border-bottom: 1px dotted #ccc;
+  font-size: 8px;
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+.item-name {
+  font-weight: bold;
+  font-size: 8px;
+  margin-bottom: 1px;
+}
+
+.item-details {
+  font-size: 7px;
+  color: #666;
+  margin-bottom: 1px;
+}
+
+.item-extras {
+  font-size: 7px;
+  color: #888;
+  margin-left: 2px;
+}
+
+.item-quantity {
+  font-size: 7px;
+  margin-bottom: 1px;
+}
+
+.item-price {
+  font-size: 8px;
+  font-weight: bold;
+  text-align: right;
+}
+
+/* Totals Section */
+.totals-section {
+  padding: 2px 1px;
+  border-top: 1px dashed #000;
+  border-bottom: 1px dashed #000;
+  margin: 2px 0;
+  font-size: 8px;
+}
+
+.total-line {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1px;
+  font-size: 7px;
+}
+
+.total-line.subtotal {
+  font-weight: bold;
+}
+
+.total-line.tax {
+  font-size: 6px;
+  color: #666;
+  margin-left: 2px;
+}
+
+.total-line.final {
+  font-size: 8px;
+  font-weight: bold;
+  border-top: 1px solid #000;
+  padding-top: 1px;
+  margin-top: 1px;
+}
+
+/* Delivery Info */
+.delivery-info {
+  padding: 2px 1px;
+  border-bottom: 1px dashed #000;
+  margin-bottom: 2px;
+  font-size: 8px;
+}
+
+.delivery-title {
+  font-size: 8px;
+  font-weight: bold;
+  margin-bottom: 1px;
+  text-transform: uppercase;
+}
+
+.delivery-details {
+  font-size: 7px;
+  line-height: 1.0;
+}
+
+/* Footer */
+.receipt-footer {
+  text-align: center;
+  padding: 2px 1px;
+  margin-top: 3px;
+  font-size: 8px;
+}
+
+.thank-you {
+  font-size: 8px;
+  font-weight: bold;
+  margin-bottom: 2px;
+  text-transform: uppercase;
+}
+
+.print-info {
+  font-size: 6px;
+  color: #666;
+  margin-bottom: 1px;
+}
+
+.restaurant-footer {
+  font-size: 6px;
+  color: #888;
+  line-height: 1.0;
+}
+
+/* Kitchen Ticket Styles */
+.kitchen-ticket {
+  width: 80mm;
+  max-width: 80mm;
+  background: white;
+  font-family: 'Courier New', monospace;
+  font-size: 8px;
+  line-height: 1.0;
+  color: #000;
+  border: 1px solid #000;
+  margin: 2px 0;
+  padding: 2px;
+  box-sizing: border-box;
+}
+
+.kitchen-header {
+  background: #000;
+  color: white;
+  text-align: center;
+  padding: 2px 1px;
+  font-weight: bold;
+  font-size: 8px;
+  text-transform: uppercase;
+}
+
+.kitchen-order-info {
+  padding: 2px 1px;
+  border-bottom: 1px solid #000;
+  font-size: 7px;
+}
+
+.kitchen-items {
+  padding: 1px;
+}
+
+.kitchen-item {
+  padding: 1px 0;
+  border-bottom: 1px dotted #ccc;
+  font-size: 8px;
+}
+
+.kitchen-item:last-child {
+  border-bottom: none;
+}
+
+.kitchen-item-name {
+  font-weight: bold;
+  font-size: 8px;
+}
+
+.kitchen-item-quantity {
+  font-size: 7px;
+  color: #666;
+}
+
+.kitchen-item-extras {
+  font-size: 7px;
+  color: #888;
+  margin-left: 2px;
+}
+
+.kitchen-notes {
+  padding: 1px;
+  border-top: 1px solid #000;
+  font-size: 7px;
+  background: #f5f5f5;
+}
+
+/* Utility Classes */
+.text-center { text-align: center; }
+.text-right { text-align: right; }
+.text-left { text-align: left; }
+.font-bold { font-weight: bold; }
+.font-normal { font-weight: normal; }
+.uppercase { text-transform: uppercase; }
+.no-margin { margin: 0; }
+.no-padding { padding: 0; }
+
+/* Print-only elements - hidden by default */
+.print-only {
+  display: none;
+}
+
+/* Responsive Adjustments */
+@media screen and (max-width: 400px) {
+  .receipt {
+    width: 100%;
+    max-width: 100%;
+  }
+  
+  .kitchen-ticket {
+    width: 100%;
+    max-width: 100%;
+  }
+}
+
+/* Print Button Styles */
+.print-button {
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  margin: 10px;
+  transition: background-color 0.3s;
+}
+
+.print-button:hover {
+  background: #0056b3;
+}
+
+.print-button:active {
+  background: #004085;
+}
+
+/* Loading States */
+.receipt-loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  font-size: 14px;
+  color: #666;
+}
+
+/* Error States */
+.receipt-error {
+  text-align: center;
+  padding: 20px;
+  color: #dc3545;
+  font-size: 14px;
+}

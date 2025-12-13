@@ -1,0 +1,18 @@
+
+# Docker Compose für lokale Entwicklung (PostgreSQL)
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: gastro-cms-multi-db
+    environment:
+      POSTGRES_USER: gR#0@r3d@LDdihna
+      POSTGRES_PASSWORD: v2EqGEioll3eT!YK@dy5n0KbNdHtLRPZ
+      POSTGRES_DB: gastro_cms_multi
+    ports:
+      - "5432:5432"
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    restart: always
+
+volumes:
+  db_data:

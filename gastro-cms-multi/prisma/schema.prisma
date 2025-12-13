@@ -1,0 +1,898 @@
+// This is your Prisma schema file for Gastro CMS Multi (Multitenant)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ------------------------------------------
+// CORE TENANCY
+// ------------------------------------------
+
+model Tenant {
+  id              String   @id @default(cuid())
+  
+  // Identifikation
+  name            String
+  domain          String?  @unique // Hauptdomain (z.B. pizzeria-mario.at)
+  subdomain       String?  @unique // Interne Subdomain (z.B. mario.gastro-cms.io)
+  
+  // Status & Plan
+  isActive        Boolean  @default(true)
+  plan            String   @default("STANDARD")
+  
+  // Inhaber-Kontakt (redundant zu User, aber praktisch für Admin)
+  ownerName       String?
+  email           String
+  phone           String?
+  
+  // Stripe Connect Fields
+  stripeAccountId        String?
+  stripeOnboardingStatus String?  // pending, completed, failed
+  stripeOnboardingUrl    String?
+  stripeConnectedAt      DateTime?
+  commissionRate         Decimal   @default(0.10) // 10%
+  
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // ----------------------------------------
+  // RELATIONS (Alles gehört zu einem Tenant)
+  // ----------------------------------------
+  products          Product[]
+  categories        Category[]
+  extraGroups       ExtraGroup[]
+  users             User[]
+  customers         Customer[]
+  orders            Order[]
+  carts             Cart[]
+  coupons           Coupon[]
+  deliveryDrivers   DeliveryDriver[]
+  assetFolders      AssetFolder[]
+  assets            Asset[]
+  slideshows        Slideshow[]
+  allergens         Allergen[]
+  taxRates          TaxRate[]
+  deliveryTimes     DeliveryTime[]
+  apiUsers          ApiUser[]
+  auditLogs         AuditLog[]
+  settings          RestaurantSettings?
+  payments          Payment[]
+  
+  @@map("tenants")
+}
+
+// ------------------------------------------
+// SHOP Models
+// ------------------------------------------
+
+model Product {
+  id            Int      @id @default(autoincrement())
+  
+  // Tenancy
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  articleNumber String?  // Unique Constraint wird unten definiert
+  name          String
+  description   String?
+  price         Decimal?
+  taxRate       Decimal  @default(0.20)
+  categoryId    Int?
+  category      Category? @relation(fields: [categoryId], references: [id])
+  allergens     String? // JSON-String
+  sortOrder     Int      @default(0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  orderItems    OrderItem[]
+  productExtras ProductExtra[]
+  coupons       Coupon[]
+  cartItems     CartItem[]
+  
+  @@unique([articleNumber, tenantId]) // Unique pro Tenant
+  @@index([tenantId])
+  @@map("products")
+}
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  
+  // Tenancy
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name        String
+  slug        String   // Unique Constraint wird unten definiert
+  description String?
+  image       String?
+  icon        String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  products    Product[]
+  categoryExtras CategoryExtra[]
+  coupons     Coupon[]
+  
+  @@unique([slug, tenantId]) // Unique pro Tenant
+  @@index([tenantId])
+  @@map("categories")
+}
+
+model ExtraGroup {
+  id            Int      @id @default(autoincrement())
+
+  // Tenancy
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name          String
+  description   String?
+  selectionType String   @default("CHECKBOX")
+  isRequired    Boolean  @default(false)
+  maxSelections Int?
+  minSelections Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  extraItems    ExtraItem[]
+  categoryExtras CategoryExtra[]
+  productExtras ProductExtra[]
+  
+  @@index([tenantId])
+  @@map("extra_groups")
+}
+
+model ExtraItem {
+  id           Int        @id @default(autoincrement())
+  // Implicit Tentancy via ExtraGroup
+  name         String
+  price        Decimal
+  isFree       Boolean    @default(false)
+  extraGroupId Int
+  extraGroup   ExtraGroup @relation(fields: [extraGroupId], references: [id], onDelete: Cascade)
+  
+  @@map("extra_items")
+}
+
+model CategoryExtra {
+  id           Int        @id @default(autoincrement())
+  categoryId   Int
+  extraGroupId Int
+  category     Category   @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  extraGroup   ExtraGroup @relation(fields: [extraGroupId], references: [id], onDelete: Cascade)
+  
+  @@unique([categoryId, extraGroupId])
+  @@map("category_extras")
+}
+
+model ProductExtra {
+  id           Int        @id @default(autoincrement())
+  productId    Int
+  extraGroupId Int
+  isActive     Boolean    @default(true)
+  sortOrder    Int        @default(0)
+  product      Product    @relation(fields: [productId], references: [id], onDelete: Cascade)
+  extraGroup   ExtraGroup @relation(fields: [extraGroupId], references: [id], onDelete: Cascade)
+  
+  @@unique([productId, extraGroupId])
+  @@map("product_extras")
+}
+
+// ------------------------------------------
+// USERS & AUTH
+// ------------------------------------------
+
+model User {
+  id            Int      @id @default(autoincrement())
+
+  // Tenancy
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  email         String   
+  password      String
+  role          String   @default("CUSTOMER")
+  isActive      Boolean  @default(true)
+  emailVerified Boolean  @default(false)
+  lastLoginAt   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  profile       UserProfile?
+  sessions      Session[]
+  customers     Customer[]
+  deliveryDriver DeliveryDriver?
+  
+  @@unique([email, tenantId]) // Email ist Unique pro Tenant
+  @@index([tenantId])
+  @@map("users")
+}
+
+model UserProfile {
+  id          Int      @id @default(autoincrement())
+  userId      Int      @unique
+  firstName   String
+  lastName    String
+  phone       String?
+  address     String?
+  city        String?
+  postalCode  String?
+  country     String   @default("Österreich")
+  avatar      String?
+  preferences String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("user_profiles")
+}
+
+model Session {
+  id            Int      @id @default(autoincrement())
+  sessionId     String   @unique
+  userId        Int
+  role          String
+  token         String
+  expiresAt     DateTime
+  lastActivity  DateTime @default(now())
+  sessionStart  DateTime @default(now())
+  userAgent     String?
+  ipAddress     String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@index([sessionId])
+}
+
+// ------------------------------------------
+// CUSTOMERS & ORDERS
+// ------------------------------------------
+
+model Customer {
+  id        Int      @id @default(autoincrement())
+
+  // Tenancy
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  userId    Int?
+  firstName String
+  lastName  String
+  email     String   
+  phone     String?
+  address   String?
+  city      String?
+  postalCode String?
+  country   String   @default("Österreich")
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  user      User?    @relation(fields: [userId], references: [id])
+  orders    Order[]
+  carts     Cart[]
+  
+  couponUsages      CouponUsage[]
+  couponAssignments CouponCustomer[]
+  
+  @@unique([email, tenantId]) // Unique pro Tenant
+  @@index([tenantId])
+  @@map("customers")
+}
+
+model Order {
+  id            Int         @id @default(autoincrement())
+
+  // Tenancy
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  orderNumber   String      // Unique Constraint unten
+  customerId    Int
+  customer      Customer    @relation(fields: [customerId], references: [id])
+  deliveryDriverId Int?
+  deliveryDriver DeliveryDriver? @relation(fields: [deliveryDriverId], references: [id])
+  orderItems    OrderItem[]
+  totalAmount   Decimal
+  totalAmountNet Decimal
+  totalTax      Decimal
+  deliveryType  String      @default("PICKUP")
+  deliveryTime  DateTime?
+  status        String      @default("PENDING")
+  notes         String?
+  
+  tipAmount     Decimal?    @default(0)
+  tipPercentage Decimal?
+  tipType       String?     @default("FIXED")
+  tipPaid       Boolean     @default(false)
+  
+  // Payment fields
+  paymentId     Int?
+  payment       Payment?    @relation("OrderPayment")
+  paymentMethod String?     // CASH, CARD, STRIPE, BANKOMAT
+  
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  
+  couponUsages  CouponUsage[]
+  deliveryStats DeliveryStats[]
+  
+  @@unique([orderNumber, tenantId])
+  @@index([tenantId])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        Int      @id @default(autoincrement())
+  orderId   Int
+  productId Int
+  extraIds  String?
+  quantity  Int      @default(1)
+  unitPrice Decimal
+  totalPrice Decimal
+  taxRate   Decimal  @default(0.20)
+  order     Order    @relation(fields: [orderId], references: [id])
+  product   Product  @relation(fields: [productId], references: [id])
+  
+  @@map("order_items")
+}
+
+model Cart {
+  id            String   @id @default(cuid())
+
+  // Tenancy
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  customerId    Int?
+  customer      Customer? @relation(fields: [customerId], references: [id])
+  items         CartItem[]
+  totalItems    Int      @default(0)
+  totalPrice    Decimal  @default(0)
+  appliedCouponId Int?
+  appliedCoupon Coupon?  @relation(fields: [appliedCouponId], references: [id])
+  discountAmount Decimal @default(0)
+  subtotalAfterDiscount Decimal @default(0)
+  subtotalNet   Decimal  @default(0)
+  totalTax      Decimal  @default(0)
+  taxBreakdown  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  expiresAt     DateTime
+  
+  @@index([tenantId])
+  @@map("carts")
+}
+
+model CartItem {
+  id        String   @id @default(cuid())
+  cartId    String
+  cart      Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  productId Int
+  product   Product  @relation(fields: [productId], references: [id])
+  name      String
+  description String?
+  price     Decimal
+  quantity  Int      @default(1)
+  extras    String?
+  totalPrice Decimal
+  taxRate   Decimal  @default(0.20)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@map("cart_items")
+}
+
+// ------------------------------------------
+// SETTINGS & CONFIG
+// ------------------------------------------
+
+model Allergen {
+  id          Int      @id @default(autoincrement())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  
+  name        String
+  description String?
+  icon        String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@map("allergens")
+}
+
+model TaxRate {
+  id          Int      @id @default(autoincrement())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name        String
+  rate        Decimal
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@map("tax_rates")
+}
+
+model RestaurantSettings {
+  id                    Int      @id @default(autoincrement())
+  
+  // Tenancy - 1:1 Relation
+  tenantId              String   @unique
+  tenant                Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  restaurantName        String
+  address               String?
+  city                  String?
+  postalCode            String?
+  phone                 String?
+  email                 String?
+  atuNumber             String?
+  fnNumber              String?
+  logo                  String?
+  favicon               String?
+  coverImage            String?  @map("cover_image")  // Restaurant-Card-Bild für Landing Page
+  category              String?  // Restaurant-Kategorie (z.B. "Italienisch", "Asiatisch")
+  openingHoursData      Json?
+  orderDeadline         String?
+  deliveryDistricts     String?
+  minOrderAmount        Decimal?
+  deliveryFee           Decimal?
+  freeDeliveryThreshold Decimal?
+  defaultTaxRate        Decimal?
+  currency              String?  @default("EUR")
+  timezone              String?  @default("Europe/Vienna")
+  
+  // SEO
+  metaTitle             String?
+  metaDescription       String?
+  ogImage               String?
+  robotsTxt             String?
+  googleAnalyticsId     String?
+  googleTagManagerId    String?
+  facebookPixelId       String?
+  structuredDataEnabled Boolean  @default(true)
+  sitemapEnabled        Boolean  @default(true)
+  
+  // Legal
+  impressumContent      String?
+  agbContent            String?
+  datenschutzContent    String?
+  impressumLastUpdated  DateTime?
+  agbLastUpdated        DateTime?
+  datenschutzLastUpdated DateTime?
+  
+  // Maintenance
+  maintenanceMode       Boolean  @default(false)
+  maintenanceMessage    String?
+  maintenanceTitle      String?
+  
+  // Design
+  selectedTheme         String?  @default("classic-elegant")
+  customColors          Json?
+  customFonts           Json?
+  customSpacing         Json?
+  customComponents      Json?
+  darkModeEnabled       Boolean  @default(false)
+  darkModeColors        Json?
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  @@map("restaurant_settings")
+}
+
+model DeliveryTime {
+  id          Int      @id @default(autoincrement())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  dayOfWeek   Int
+  startTime   String
+  endTime     String
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@map("delivery_times")
+}
+
+// ------------------------------------------
+// COUPONS
+// ------------------------------------------
+
+model Coupon {
+  id                    Int      @id @default(autoincrement())
+
+  // Tenancy
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  code                  String
+  name                  String
+  description           String?
+  discountType          String
+  discountValue         Decimal
+  minimumOrderAmount    Decimal?
+  maximumDiscount       Decimal?
+  startDate             DateTime
+  endDate               DateTime
+  usageLimit            Int?
+  usageCount            Int      @default(0)
+  perCustomerLimit      Int      @default(1)
+  isActive              Boolean  @default(true)
+  isPublic              Boolean  @default(true)
+  canCombine            Boolean  @default(false)
+  
+  categoryId            Int?
+  productId             Int?
+  
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  
+  category              Category? @relation(fields: [categoryId], references: [id])
+  product               Product?  @relation(fields: [productId], references: [id])
+  restrictions          CouponRestriction[]
+  usages               CouponUsage[]
+  customerAssignments  CouponCustomer[]
+  carts                Cart[]
+  
+  @@unique([code, tenantId])
+  @@index([tenantId])
+  @@map("coupons")
+}
+
+model CouponRestriction {
+  id                Int      @id @default(autoincrement())
+  couponId          Int
+  restrictionType   String
+  restrictionValue  String
+  restrictionOperator String @default("INCLUDE")
+  createdAt         DateTime @default(now())
+  
+  coupon            Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  
+  @@map("coupon_restrictions")
+}
+
+model CouponUsage {
+  id             Int      @id @default(autoincrement())
+  couponId       Int
+  orderId        Int
+  customerId     Int
+  discountAmount Decimal
+  usedAt         DateTime @default(now())
+  
+  coupon         Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  customer       Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  @@map("coupon_usages")
+}
+
+model CouponCustomer {
+  id           Int      @id @default(autoincrement())
+  couponId     Int
+  customerId   Int
+  usageCount   Int      @default(0)
+  lastUsedAt   DateTime?
+  createdAt    DateTime @default(now())
+  
+  coupon       Coupon   @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  customer     Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  
+  @@unique([couponId, customerId])
+  @@map("coupon_customers")
+}
+
+// ------------------------------------------
+// DELIVERY DRIVERS
+// ------------------------------------------
+
+model DeliveryDriver {
+  id              Int      @id @default(autoincrement())
+
+  // Tenancy
+  tenantId      String
+  tenant        Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  userId          Int      @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  profile         DeliveryDriverProfile?
+  isActive        Boolean  @default(true)
+  isAvailable     Boolean  @default(true)
+  currentLocation String?
+  lastLocationUpdate DateTime?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  assignedOrders  Order[]
+  deliveryStats   DeliveryStats[]
+  
+  @@index([tenantId])
+  @@map("delivery_drivers")
+}
+
+model DeliveryDriverProfile {
+  id                Int      @id @default(autoincrement())
+  deliveryDriverId  Int      @unique
+  deliveryDriver    DeliveryDriver @relation(fields: [deliveryDriverId], references: [id], onDelete: Cascade)
+  avatar            String?
+  phone             String?
+  workingHours      String
+  gpsEnabled        Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  
+  @@map("delivery_driver_profiles")
+}
+
+model DeliveryStats {
+  id                Int      @id @default(autoincrement())
+  deliveryDriverId  Int
+  deliveryDriver    DeliveryDriver @relation(fields: [deliveryDriverId], references: [id], onDelete: Cascade)
+  orderId           Int
+  order             Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  deliveryDate      DateTime
+  deliveryTime      Int?
+  distance          Decimal?
+  tipAmount         Decimal?
+  rating            Int?
+  createdAt         DateTime @default(now())
+  
+  @@map("delivery_stats")
+  @@index([deliveryDriverId, deliveryDate])
+  @@index([deliveryDate])
+}
+
+// ------------------------------------------
+// API API
+// ------------------------------------------
+
+model ApiUser {
+  id          Int      @id @default(autoincrement())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name        String
+  email       String
+  company     String?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  apiKeys     ApiKey[]
+  
+  @@unique([email, tenantId])
+  @@index([tenantId])
+  @@map("api_users")
+}
+
+model ApiKey {
+  id              Int      @id @default(autoincrement())
+  name            String
+  keyHash         String   @unique
+  keyPrefix       String
+  apiUserId       Int
+  apiUser         ApiUser  @relation(fields: [apiUserId], references: [id], onDelete: Cascade)
+  permissions     String
+  isActive        Boolean  @default(true)
+  expiresAt       DateTime?
+  lastUsed        DateTime?
+  requestsPerHour Int      @default(1000)
+  requestsPerDay  Int      @default(10000)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  usageStats      ApiKeyUsage[]
+  
+  @@map("api_keys")
+}
+
+model ApiKeyUsage {
+  id              Int      @id @default(autoincrement())
+  apiKeyId        Int
+  apiKey          ApiKey   @relation(fields: [apiKeyId], references: [id], onDelete: Cascade)
+  endpoint        String
+  method          String
+  statusCode      Int
+  responseTime    Int
+  ipAddress       String?
+  userAgent       String?
+  requestSize     Int?
+  responseSize    Int?
+  timestamp       DateTime @default(now())
+  
+  @@index([apiKeyId, timestamp])
+  @@map("api_key_usage")
+}
+
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  
+  // Tenancy (Optional, da System-Logs auch ohne Tenant sein können, aber meistens mit)
+  tenantId    String?
+  tenant      Tenant?  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  action      String
+  userId      Int?
+  apiKeyId    Int?
+  ipAddress   String?
+  userAgent   String?
+  details     String?
+  severity    String   @default("INFO")
+  timestamp   DateTime @default(now())
+  
+  @@index([action, timestamp])
+  @@index([userId, timestamp])
+  @@index([tenantId])
+  @@map("audit_logs")
+}
+
+// ------------------------------------------
+// ASSETS & MEDIA
+// ------------------------------------------
+
+model AssetFolder {
+  id          Int      @id @default(autoincrement())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  name        String
+  slug        String
+  description String?
+  parentId    Int?
+  parent      AssetFolder? @relation("FolderHierarchy", fields: [parentId], references: [id])
+  children    AssetFolder[] @relation("FolderHierarchy")
+  sortOrder   Int      @default(0)
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  createdByUserId Int?
+  
+  assets      Asset[]
+  
+  @@unique([slug, tenantId])
+  @@index([tenantId])
+  @@map("asset_folders")
+}
+
+model Asset {
+  id              Int      @id @default(autoincrement())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  storedPath      String
+  originalName    String
+  title           String?
+  alt             String?
+  description     String?
+  tags            String?
+  ext             String
+  mime            String
+  size            Int
+  width           Int?
+  height          Int?
+  folderId        Int?
+  folder          AssetFolder? @relation(fields: [folderId], references: [id])
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  createdByUserId Int?
+  
+  variants        AssetVariant[]
+  
+  @@index([folderId])
+  @@index([mime])
+  @@index([createdAt])
+  @@index([tenantId])
+  @@map("assets")
+}
+
+model AssetVariant {
+  id          Int      @id @default(autoincrement())
+  assetId     Int
+  asset       Asset    @relation(fields: [assetId], references: [id], onDelete: Cascade)
+  variantType String
+  storedPath  String
+  width       Int?
+  height      Int?
+  size        Int
+  quality     Int?
+  createdAt   DateTime @default(now())
+  
+  @@unique([assetId, variantType])
+  @@map("asset_variants")
+}
+
+// ------------------------------------------
+// MARKETING
+// ------------------------------------------
+
+model Slideshow {
+  id          Int      @id @default(autoincrement())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+  backgroundImage String
+  headline    String
+  subheadline String?
+  buttonText  String?
+  buttonLink  String?
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  startDate   DateTime?
+  endDate     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  slideshowItems SlideshowItem[]
+  
+  @@index([tenantId])
+  @@map("slideshows")
+}
+
+model SlideshowItem {
+  id           Int       @id @default(autoincrement())
+  slideshowId  Int
+  itemType     String
+  itemId       Int
+  title        String?
+  description  String?
+  image        String?
+  isActive     Boolean   @default(true)
+  sortOrder    Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  slideshow    Slideshow @relation(fields: [slideshowId], references: [id], onDelete: Cascade)
+  
+  @@map("slideshow_items")
+}
+
+// ------------------------------------------
+// PAYMENT MODEL
+// ------------------------------------------
+
+model Payment {
+  id              Int      @id @default(autoincrement())
+  tenantId        String
+  tenant          Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  orderId         Int      @unique
+  order           Order    @relation("OrderPayment", fields: [orderId], references: [id], onDelete: Cascade)
+  paymentMethod   String   // CASH, CARD, STRIPE, BANKOMAT
+  amount          Decimal
+  commission      Decimal  // 10% des Betrags
+  commissionPaid  Boolean  @default(false)
+  paidAt          DateTime?
+  notes           String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([tenantId])
+  @@index([orderId])
+  @@map("payments")
+}

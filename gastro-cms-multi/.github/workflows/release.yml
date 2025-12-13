@@ -1,0 +1,91 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          
+      - name: Install dependencies
+        run: npm ci
+        
+      - name: Run tests
+        run: npm run test --if-present
+        
+      - name: Build application
+        run: npm run build
+        
+      - name: Create release archive
+        run: |
+          zip -r gastro-cms-${{ github.ref_name }}.zip \
+            -x "node_modules/*" \
+            -x ".git/*" \
+            -x ".next/*" \
+            -x "*.log" \
+            -x "coverage/*" \
+            -x ".env*" \
+            -x "prisma/*.db" \
+            -x "backups/*" \
+            -x "updates/*" \
+            .
+            
+      - name: Upload release asset
+        uses: actions/upload-artifact@v4
+        with:
+          name: gastro-cms-${{ github.ref_name }}
+          path: gastro-cms-${{ github.ref_name }}.zip
+          
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref }}
+          release_name: Gastro-CMS ${{ github.ref_name }}
+          body: |
+            ## Gastro-CMS ${{ github.ref_name }}
+            
+            ### What's New
+            - Bug fixes and improvements
+            - Enhanced security features
+            - Performance optimizations
+            
+            ### Installation
+            1. Download the release archive
+            2. Extract to your server
+            3. Run `npm install`
+            4. Run `npm run build`
+            5. Start with `npm start`
+            
+            ### Update from Previous Version
+            Use the built-in update system in the admin dashboard:
+            1. Go to Dashboard > Updates
+            2. Click "Check for Updates"
+            3. Click "Install Update"
+            
+            The system will automatically:
+            - Create a database backup
+            - Download and install the update
+            - Run database migrations safely
+            - Restart the application
+            
+            ### Database Safety
+            - All updates include automatic database backups
+            - Migrations are performed safely without data loss
+            - Rollback capability if issues occur
+            
+          draft: false
+          prerelease: false

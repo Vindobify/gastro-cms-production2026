@@ -1,0 +1,92 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: gR#0@r3d@LDdihna
+      POSTGRES_PASSWORD: v2EqGEioll3eT!YK@dy5n0KbNdHtLRPZ
+      POSTGRES_DB: gastro_cms_multi
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+
+  multi:
+    build:
+      context: ./gastro-cms-multi
+    env_file:
+      - ./gastro-cms-multi/.env.local
+    environment:
+      DATABASE_URL: postgresql://gR%230%40r3d%40LDdihna:v2EqGEioll3eT%21YK%40dy5n0KbNdHtLRPZ@db:5432/gastro_cms_multi?schema=public
+      NEXTAUTH_URL: http://pizzeria1140.local
+      # SMTP/Brevo Configuration (kann auch in .env.local gesetzt werden)
+      # SMTP_HOST: smtp-relay.brevo.com
+      # SMTP_PORT: 587
+      # SMTP_USER: 96fdd4001@smtp-brevo.com
+      # SMTP_PASS: zLCrHG9R6Qx4NjEq
+      # SMTP_FROM: office@gastro-cms.at
+      # CRM URL für Stripe Connect Weiterleitung
+      # CRM_URL: http://crm.gastro.local
+    depends_on:
+      - db
+    expose:
+      - "3000"
+
+  crm:
+    build:
+      context: ./gastro-crm
+    env_file:
+      - ./gastro-crm/.env.local
+    environment:
+      DATABASE_URL: postgresql://gR%230%40r3d%40LDdihna:v2EqGEioll3eT%21YK%40dy5n0KbNdHtLRPZ@db:5432/gastro_cms_multi?schema=public
+      NEXTAUTH_URL: http://crm.gastro.local
+      # Stripe Configuration (ERFORDERLICH für Stripe Connect)
+      # WICHTIG: In Docker funktioniert das Schreiben in .env.local NICHT, daher hier setzen!
+      # TEST KEYS (für lokale Entwicklung)
+      STRIPE_SECRET_KEY: sk_test_51SUvV4A2kdfaPqbPLTWbzLoeZqNRzFs5pRoCFf7dT1h2JrAgvZq72bzjdCXuYe9mPgAvo4kLFGldMNQyCgaEBNDk00ezrYC3TZ
+      STRIPE_WEBHOOK_SECRET: whsec_OXwNh8WLB8zhRCoWPvVpaUifx1JBgPMf
+      # STRIPE_CLIENT_ID: ca_... # OPTIONAL: Nur für erweiterte Connect OAuth Features (nicht für Express Accounts)
+      STRIPE_PUBLISHABLE_KEY: pk_test_51SUvV4A2kdfaPqbPWOazXnxKmH1YepxjsT5ZtqkcCSVZ0HmtKSPhXMEaxheWBmmGlc14noYmVo35ooLvt56USakp00kgzsOAEE
+      NEXT_PUBLIC_APP_URL: http://crm.gastro.local
+    depends_on:
+      - db
+    expose:
+      - "3000"
+
+  root:
+    build:
+      context: ./gastro-cms-root
+    env_file:
+      - ./gastro-cms-root/.env.local
+    environment:
+      DATABASE_URL: postgresql://gR%230%40r3d%40LDdihna:v2EqGEioll3eT%21YK%40dy5n0KbNdHtLRPZ@db:5432/gastro_cms_multi?schema=public
+      # SMTP/Brevo Configuration (kann auch in .env.local gesetzt werden)
+      # SMTP_HOST: smtp-relay.brevo.com
+      # SMTP_PORT: 587
+      # SMTP_USER: 96fdd4001@smtp-brevo.com
+      # SMTP_PASS: zLCrHG9R6Qx4NjEq
+      # SMTP_FROM: office@gastro-cms.at
+      # Stripe Configuration (falls verwendet)
+      # STRIPE_SECRET_KEY: sk_test_... # Hier eintragen wenn Stripe Checkout verwendet wird
+      # NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY: pk_test_... # Hier eintragen wenn Stripe Checkout verwendet wird
+      # STRIPE_WEBHOOK_SECRET: whsec_... # Hier eintragen wenn Stripe Webhooks verwendet werden
+    depends_on:
+      - db
+    expose:
+      - "3000"
+
+  proxy:
+    image: nginx:alpine
+    volumes:
+      - ./proxy/nginx.conf:/etc/nginx/nginx.conf:ro
+    ports:
+      - "80:80"
+    depends_on:
+      - multi
+      - crm
+      - root
+
+volumes:
+  db_data:
+
