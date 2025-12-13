@@ -6,10 +6,11 @@ COPY prisma.config.ts ./prisma.config.ts
 COPY package*.json ./
 # Install dependencies (ignore scripts to prevent postinstall issues)
 RUN npm ci --ignore-scripts || npm install --ignore-scripts
-# Run prisma generate manually
+# Run prisma generate manually (DATABASE_URL not needed for generation)
 RUN npx prisma generate || true
 COPY . .
-RUN npm run build
+# Build with verbose output for debugging
+RUN npm run build 2>&1 || (echo "Build failed, checking logs..." && cat .next/trace 2>/dev/null || true && exit 1)
 
 FROM node:20-alpine AS runner
 WORKDIR /app
