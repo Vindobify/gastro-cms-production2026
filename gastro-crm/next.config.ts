@@ -7,15 +7,14 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: true,
   },
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
   // Increase body size limit for file uploads (5MB)
   experimental: {
     serverActions: {
       bodySizeLimit: '5mb',
     },
   },
+  // Prisma Client als externes Paket behandeln
+  serverExternalPackages: ['@prisma/client', 'prisma'],
   images: {
     remotePatterns: [
       {
