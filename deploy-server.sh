@@ -100,7 +100,9 @@ if [ ! -d "gastro-cms-production" ]; then
     cd gastro-cms-production
 else
     cd gastro-cms-production
+    echo "Aktualisiere Repository..."
     git pull origin main || true
+    echo -e "${GREEN}✅ Repository aktualisiert${NC}"
 fi
 
 # 4. .env Datei erstellen
@@ -197,9 +199,17 @@ echo "🗄️  Schritt 9: Datenbank-Migrationen ausführen..."
 echo "Warte bis Datenbank bereit ist..."
 sleep 5
 
+# Lese POSTGRES_USER aus .env
+if [ -f ".env" ]; then
+    POSTGRES_USER=$(grep "^POSTGRES_USER=" .env | cut -d '=' -f2 | tr -d '"' | tr -d "'" || echo "gastrocms")
+else
+    POSTGRES_USER="gastrocms"
+fi
+
 # Prüfe ob Datenbank bereit ist
+echo "Prüfe Datenbank-Verbindung..."
 for i in {1..30}; do
-    if docker compose -f docker-compose.production.yml exec -T db pg_isready -U gastrocms > /dev/null 2>&1; then
+    if docker compose -f docker-compose.production.yml exec -T db pg_isready -U "$POSTGRES_USER" > /dev/null 2>&1; then
         echo -e "${GREEN}✅ Datenbank ist bereit${NC}"
         break
     fi
@@ -207,13 +217,24 @@ for i in {1..30}; do
     sleep 2
 done
 
+# Prüfe ob Datenbank existiert
+DB_EXISTS=$(docker compose -f docker-compose.production.yml exec -T db psql -U "$POSTGRES_USER" -lqt | cut -d \| -f 1 | grep -qw "gastro_cms_multi" && echo "yes" || echo "no")
+
+if [ "$DB_EXISTS" != "yes" ]; then
+    echo -e "${YELLOW}⚠️  Datenbank 'gastro_cms_multi' existiert nicht, erstelle sie...${NC}"
+    docker compose -f docker-compose.production.yml exec -T db psql -U "$POSTGRES_USER" -c "CREATE DATABASE gastro_cms_multi;" || true
+fi
+
 # Migrationen ausführen
-if docker compose -f docker-compose.production.yml exec -T crm npx prisma migrate deploy > /dev/null 2>&1; then
+echo "Führe Migrationen aus..."
+if docker compose -f docker-compose.production.yml exec -T crm npx prisma migrate deploy 2>&1; then
     echo -e "${GREEN}✅ Migrationen erfolgreich ausgeführt${NC}"
 else
     echo -e "${YELLOW}⚠️  Migrationen fehlgeschlagen, versuche db push...${NC}"
-    docker compose -f docker-compose.production.yml exec -T crm npx prisma db push --accept-data-loss || true
-    echo -e "${YELLOW}⚠️  Bitte prüfe die Datenbank manuell${NC}"
+    docker compose -f docker-compose.production.yml exec -T crm npx prisma db push --accept-data-loss 2>&1 || {
+        echo -e "${RED}❌ Datenbank-Push fehlgeschlagen${NC}"
+        echo -e "${YELLOW}⚠️  Bitte prüfe die Datenbank manuell${NC}"
+    }
 fi
 
 # 10. Nginx konfigurieren
