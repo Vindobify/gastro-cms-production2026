@@ -15,7 +15,7 @@ services:
     volumes:
       - db_data:/var/lib/postgresql/data
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"  # Nur lokal erreichbar
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-gastrocms}"]
@@ -72,8 +72,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    ports:
+      - "127.0.0.1:3001:3000"  # CRM auf Port 3001
     restart: unless-stopped
-    # Healthcheck optional - Next.js hat standardmäßig keinen /api/health Endpoint
     networks:
       - gastro-network
 
@@ -102,8 +103,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    ports:
+      - "127.0.0.1:3000:3000"  # Root auf Port 3000
     restart: unless-stopped
-    # Healthcheck optional - Next.js hat standardmäßig keinen /api/health Endpoint
     networks:
       - gastro-network
 
