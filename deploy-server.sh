@@ -110,6 +110,10 @@ fi
 # 4. .env Datei erstellen
 echo ""
 echo "🔐 Schritt 4: Environment-Variablen einrichten..."
+
+# Prüfe ob Datenbank-Volume bereits existiert
+DB_VOLUME_EXISTS=$(docker volume ls | grep -q "gastro-cms-production_db_data" && echo "yes" || echo "no")
+
 if [ ! -f ".env" ]; then
     echo "Erstelle .env Datei mit Production-Werten..."
     
@@ -171,8 +175,20 @@ EOF
     echo -e "${YELLOW}⚠️  WICHTIG: Speichere die Passwörter sicher!${NC}"
     echo -e "${YELLOW}   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}${NC}"
     echo -e "${YELLOW}   JWT_SECRET: ${JWT_SECRET}${NC}"
+    
+    # Warnung wenn Datenbank-Volume bereits existiert
+    if [ "$DB_VOLUME_EXISTS" = "yes" ]; then
+        echo -e "${RED}⚠️  WICHTIG: Datenbank-Volume existiert bereits!${NC}"
+        echo -e "${RED}   Das neue Passwort funktioniert nur, wenn das Volume gelöscht wird.${NC}"
+        echo -e "${RED}   Möchtest du das Volume löschen? Dann führe aus:${NC}"
+        echo -e "${RED}   docker volume rm gastro-cms-production_db_data${NC}"
+        echo -e "${RED}   Dann starte das Script erneut.${NC}"
+    fi
 else
     echo -e "${GREEN}✅ .env Datei vorhanden${NC}"
+    if [ "$DB_VOLUME_EXISTS" = "yes" ]; then
+        echo -e "${YELLOW}⚠️  Datenbank-Volume existiert bereits - verwende Passwort aus .env${NC}"
+    fi
 fi
 
 # 5. Docker Images bauen
@@ -191,8 +207,6 @@ echo "📊 Schritt 7: Service-Status prüfen..."
 docker compose -f docker-compose.production.yml ps
 
 # 8. Warte bis Services bereit sind
-echo ""
-echo "⏳ Schritt 8: Warte bis Services bereit sind..."
 echo ""
 echo "⏳ Schritt 8: Warte bis Services bereit sind..."
 sleep 15
@@ -245,42 +259,54 @@ fi
 echo ""
 echo "🌐 Schritt 10: Nginx konfigurieren..."
 
-# Prüfe ob Nginx installiert ist
-if ! command -v nginx &> /dev/null; then
-    echo "Nginx wird installiert..."
-    apt-get update
-    apt-get install -y nginx
-    systemctl start nginx
-    systemctl enable nginx
-    echo -e "${GREEN}✅ Nginx installiert${NC}"
+# Prüfe ob Port 80 bereits belegt ist (Docker-Container)
+if docker ps | grep -q "gastro-cms-proxy"; then
+    echo -e "${YELLOW}⚠️  Docker-Container 'gastro-cms-proxy' läuft bereits auf Port 80${NC}"
+    echo -e "${YELLOW}   System-Nginx wird nicht benötigt, da Docker-Container als Reverse Proxy fungiert${NC}"
+    echo -e "${GREEN}✅ Nginx-Konfiguration übersprungen (Docker-Container verwendet)${NC}"
 else
-    echo -e "${GREEN}✅ Nginx bereits installiert${NC}"
-fi
-
-# Kopiere Nginx-Konfiguration
-if [ -f "nginx-production.conf" ]; then
-    echo "Kopiere Nginx-Konfiguration..."
-    cp nginx-production.conf /etc/nginx/sites-available/gastro-cms
-    
-    # Entferne alte Symlinks
-    rm -f /etc/nginx/sites-enabled/gastro-cms
-    rm -f /etc/nginx/sites-enabled/default
-    
-    # Erstelle Symlink
-    ln -sf /etc/nginx/sites-available/gastro-cms /etc/nginx/sites-enabled/
-    
-    # Teste Nginx-Konfiguration
-    if nginx -t > /dev/null 2>&1; then
-        echo -e "${GREEN}✅ Nginx-Konfiguration ist gültig${NC}"
-        systemctl reload nginx
-        echo -e "${GREEN}✅ Nginx neu geladen${NC}"
+    # Prüfe ob Nginx installiert ist
+    if ! command -v nginx &> /dev/null; then
+        echo "Nginx wird installiert..."
+        apt-get update
+        apt-get install -y nginx
+        systemctl enable nginx
+        echo -e "${GREEN}✅ Nginx installiert${NC}"
     else
-        echo -e "${RED}❌ Nginx-Konfiguration fehlerhaft${NC}"
-        nginx -t
-        echo -e "${YELLOW}⚠️  Bitte korrigiere die Nginx-Konfiguration manuell${NC}"
+        echo -e "${GREEN}✅ Nginx bereits installiert${NC}"
     fi
-else
-    echo -e "${YELLOW}⚠️  nginx-production.conf nicht gefunden, überspringe Nginx-Konfiguration${NC}"
+    
+    # Prüfe ob Port 80 frei ist
+    if lsof -i :80 > /dev/null 2>&1; then
+        echo -e "${RED}❌ Port 80 ist bereits belegt${NC}"
+        echo -e "${YELLOW}⚠️  Nginx kann nicht gestartet werden. Bitte stoppe den Service auf Port 80.${NC}"
+    else
+        # Kopiere Nginx-Konfiguration
+        if [ -f "nginx-production.conf" ]; then
+            echo "Kopiere Nginx-Konfiguration..."
+            cp nginx-production.conf /etc/nginx/sites-available/gastro-cms
+            
+            # Entferne alte Symlinks
+            rm -f /etc/nginx/sites-enabled/gastro-cms
+            rm -f /etc/nginx/sites-enabled/default
+            
+            # Erstelle Symlink
+            ln -sf /etc/nginx/sites-available/gastro-cms /etc/nginx/sites-enabled/
+            
+            # Teste Nginx-Konfiguration
+            if nginx -t > /dev/null 2>&1; then
+                echo -e "${GREEN}✅ Nginx-Konfiguration ist gültig${NC}"
+                systemctl reload nginx || systemctl start nginx
+                echo -e "${GREEN}✅ Nginx gestartet/neu geladen${NC}"
+            else
+                echo -e "${RED}❌ Nginx-Konfiguration fehlerhaft${NC}"
+                nginx -t
+                echo -e "${YELLOW}⚠️  Bitte korrigiere die Nginx-Konfiguration manuell${NC}"
+            fi
+        else
+            echo -e "${YELLOW}⚠️  nginx-production.conf nicht gefunden, überspringe Nginx-Konfiguration${NC}"
+        fi
+    fi
 fi
 
 # 11. SSL-Zertifikate (optional)
