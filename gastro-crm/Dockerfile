@@ -11,6 +11,8 @@ RUN npm ci --ignore-scripts || npm install --ignore-scripts
 
 # Run prisma generate manually (DATABASE_URL not needed for generation)
 # WICHTIG: Prisma Client muss VOR dem Build generiert werden
+# Setze eine Dummy DATABASE_URL für prisma generate (wird nur für Schema-Validierung benötigt)
+ENV DATABASE_URL="postgresql://dummy:dummy@localhost:5432/dummy"
 RUN npx prisma generate
 
 # Copy all source files
