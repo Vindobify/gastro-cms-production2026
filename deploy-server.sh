@@ -2,6 +2,7 @@
 
 # 🚀 Server Deployment Script für Gastro CMS 3.0
 # Führe dieses Script auf dem Server aus: bash deploy-server.sh
+# Oder direkt von GitHub: bash <(curl -sSL https://raw.githubusercontent.com/Vindobify/gastro-cms-production2026/main/deploy-server.sh)
 
 set -e  # Exit on error
 
@@ -101,7 +102,8 @@ if [ ! -d "gastro-cms-production" ]; then
 else
     cd gastro-cms-production
     echo "Aktualisiere Repository..."
-    git pull origin main || true
+    git fetch origin main
+    git reset --hard origin/main || git pull origin main || true
     echo -e "${GREEN}✅ Repository aktualisiert${NC}"
 fi
 
