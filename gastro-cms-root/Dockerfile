@@ -2,14 +2,17 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Install deps (npm ci expects package-lock)
-COPY package.json package-lock.json ./
-
 # Copy Prisma files before npm ci (needed for postinstall script)
 COPY prisma ./prisma
 COPY prisma.config.ts ./prisma.config.ts
 
-RUN npm ci
+# Install deps (npm ci expects package-lock)
+COPY package.json package-lock.json ./
+
+# Install dependencies (ignore scripts to prevent postinstall issues)
+RUN npm ci --ignore-scripts || npm install --ignore-scripts
+# Run prisma generate manually
+RUN npx prisma generate || true
 
 # Copy source and build
 COPY . .

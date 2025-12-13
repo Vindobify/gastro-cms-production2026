@@ -1,10 +1,12 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
-COPY package*.json ./
-RUN npm ci
+# Copy Prisma files first (needed for postinstall script)
 COPY prisma ./prisma
-# Prisma generate benötigt DATABASE_URL, aber nur für Schema-Validierung
-# In Production wird DATABASE_URL zur Laufzeit gesetzt
+COPY package*.json ./
+# Install dependencies (postinstall will run prisma generate)
+# Use --ignore-scripts to prevent postinstall from running, we'll run it manually
+RUN npm ci --ignore-scripts || npm install --ignore-scripts
+# Now run prisma generate manually (DATABASE_URL not needed for generation)
 RUN npx prisma generate || true
 COPY . .
 RUN npm run build
