@@ -10,7 +10,7 @@ services:
     environment:
       - NODE_ENV=production
       - PORT=3000
-      - DATABASE_URL=postgresql://gR%230%40r3d%40LDdihna:v2EqGEioll3eT%21YK%40dy5n0KbNdHtLRPZ@db:5432/gastrocms?schema=public
+      - DATABASE_URL=postgresql://gR%230%40r3d%40LDdihna:v2EqGEioll3eT%21YK%40dy5n0KbNdHtLRPZ@db:5432/gastro_cms_multi?schema=public
     ports:
       - "3000:3000"
     depends_on:

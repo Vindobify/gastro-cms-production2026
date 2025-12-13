@@ -193,6 +193,8 @@ docker compose -f docker-compose.production.yml ps
 # 8. Warte bis Services bereit sind
 echo ""
 echo "⏳ Schritt 8: Warte bis Services bereit sind..."
+echo ""
+echo "⏳ Schritt 8: Warte bis Services bereit sind..."
 sleep 15
 
 # 9. Datenbank-Migrationen ausführen
