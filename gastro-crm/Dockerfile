@@ -4,8 +4,10 @@ WORKDIR /app
 COPY prisma ./prisma
 COPY prisma.config.ts ./prisma.config.ts
 COPY package*.json ./
-# Install dependencies
-RUN npm ci || npm install
+# Install dependencies (ignore scripts to prevent postinstall issues)
+RUN npm ci --ignore-scripts || npm install --ignore-scripts
+# Run prisma generate manually
+RUN npx prisma generate || true
 COPY . .
 RUN npm run build
 
