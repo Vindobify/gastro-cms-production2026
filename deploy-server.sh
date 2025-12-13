@@ -398,8 +398,8 @@ else
 fi
 echo ""
 echo "🌐 URLs:"
-echo "  - Multi-Tenant (Hauptdomain): http://www.gastro-cms.at"
-echo "  - Landing Page (CRM): http://crm.gastro-cms.at"
+echo "  - Landing Page (Hauptdomain): http://www.gastro-cms.at / http://gastro-cms.at"
+echo "  - CRM: http://crm.gastro-cms.at"
 echo "  - Multi-Tenant (Wildcard): http://*.gastro-cms.at"
 echo ""
 echo "📊 Nützliche Befehle:"
