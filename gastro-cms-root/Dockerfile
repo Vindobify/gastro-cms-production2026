@@ -9,7 +9,7 @@ COPY package.json package-lock.json ./
 COPY prisma ./prisma
 COPY prisma.config.ts ./prisma.config.ts
 
-RUN npm ci --only=production=false
+RUN npm ci
 
 # Copy source and build
 COPY . .

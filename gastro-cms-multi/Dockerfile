@@ -1,7 +1,7 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package*.json ./
-RUN npm ci --only=production=false
+RUN npm ci
 COPY prisma ./prisma
 # Prisma generate benötigt DATABASE_URL, aber nur für Schema-Validierung
 # In Production wird DATABASE_URL zur Laufzeit gesetzt
