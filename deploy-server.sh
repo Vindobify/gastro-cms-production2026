@@ -326,13 +326,28 @@ if [[ $REPLY =~ ^[Jj]$ ]]; then
     echo "Erstelle SSL-Zertifikate..."
     echo -e "${YELLOW}⚠️  Stelle sicher, dass die Domains auf diesen Server zeigen!${NC}"
     
-    # SSL für Landing Page
-    certbot --nginx -d www.gastro-cms.at -d gastro-cms.at --non-interactive --agree-tos --email office@gastro-cms.at --redirect || echo -e "${YELLOW}⚠️  SSL für Landing Page fehlgeschlagen${NC}"
-    
-    # SSL für CRM
-    certbot --nginx -d crm.gastro-cms.at --non-interactive --agree-tos --email office@gastro-cms.at --redirect || echo -e "${YELLOW}⚠️  SSL für CRM fehlgeschlagen${NC}"
-    
-    echo -e "${GREEN}✅ SSL-Zertifikate eingerichtet${NC}"
+    # Prüfe ob Docker-Container auf Port 80 läuft
+    if docker ps | grep -q "gastro-cms-proxy"; then
+        echo -e "${YELLOW}⚠️  Docker-Container läuft auf Port 80${NC}"
+        echo -e "${YELLOW}   SSL-Zertifikate müssen manuell im Docker-Container konfiguriert werden${NC}"
+        echo -e "${YELLOW}   Oder verwende Certbot mit --standalone (stoppt temporär Port 80)${NC}"
+        echo ""
+        echo "Option 1: Certbot standalone (stoppt temporär Port 80):"
+        echo "  docker compose -f docker-compose.production.yml stop proxy"
+        echo "  certbot certonly --standalone -d www.gastro-cms.at -d gastro-cms.at -d crm.gastro-cms.at --non-interactive --agree-tos --email office@gastro-cms.at"
+        echo "  docker compose -f docker-compose.production.yml start proxy"
+        echo ""
+        echo "Option 2: Manuelle SSL-Konfiguration im Docker-Container"
+        echo "  Kopiere Zertifikate in den Container und konfiguriere Nginx manuell"
+    else
+        # SSL für Landing Page
+        certbot --nginx -d www.gastro-cms.at -d gastro-cms.at --non-interactive --agree-tos --email office@gastro-cms.at --redirect || echo -e "${YELLOW}⚠️  SSL für Landing Page fehlgeschlagen${NC}"
+        
+        # SSL für CRM
+        certbot --nginx -d crm.gastro-cms.at --non-interactive --agree-tos --email office@gastro-cms.at --redirect || echo -e "${YELLOW}⚠️  SSL für CRM fehlgeschlagen${NC}"
+        
+        echo -e "${GREEN}✅ SSL-Zertifikate eingerichtet${NC}"
+    fi
 else
     echo -e "${YELLOW}⚠️  SSL-Zertifikate übersprungen${NC}"
     echo "Du kannst sie später mit folgenden Befehlen einrichten:"

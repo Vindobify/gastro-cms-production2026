@@ -20,7 +20,7 @@ services:
   db:
     image: postgres:15-alpine
     environment:
-      - POSTGRES_DB=gastrocms
+      - POSTGRES_DB=gastro_cms_multi
       - POSTGRES_USER=gR#0@r3d@LDdihna
       - POSTGRES_PASSWORD=v2EqGEioll3eT!YK@dy5n0KbNdHtLRPZ
     volumes:
