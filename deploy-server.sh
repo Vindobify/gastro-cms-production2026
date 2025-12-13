@@ -392,9 +392,9 @@ else
 fi
 echo ""
 echo "🌐 URLs:"
-echo "  - Landing Page: http://www.gastro-cms.at"
-echo "  - CRM: http://crm.gastro-cms.at"
-echo "  - Multi-Tenant: http://*.gastro-cms.at"
+echo "  - Multi-Tenant (Hauptdomain): http://www.gastro-cms.at"
+echo "  - Landing Page (CRM): http://crm.gastro-cms.at"
+echo "  - Multi-Tenant (Wildcard): http://*.gastro-cms.at"
 echo ""
 echo "📊 Nützliche Befehle:"
 echo "  - Logs ansehen: docker compose -f docker-compose.production.yml logs -f"
