@@ -107,11 +107,66 @@ fi
 echo ""
 echo "🔐 Schritt 4: Environment-Variablen einrichten..."
 if [ ! -f ".env" ]; then
-    echo -e "${YELLOW}⚠️  .env Datei nicht gefunden. Erstelle aus Template...${NC}"
-    cp docker-compose.production.env.example .env
-    echo -e "${YELLOW}⚠️  WICHTIG: Bearbeite .env Datei und trage deine echten Werte ein!${NC}"
-    echo -e "${YELLOW}⚠️  nano .env${NC}"
-    read -p "Drücke Enter wenn du .env bearbeitet hast..."
+    echo "Erstelle .env Datei mit Production-Werten..."
+    
+    # Generiere sichere Passwörter
+    POSTGRES_PASSWORD=$(openssl rand -base64 32 | tr -d "=+/" | cut -c1-32)
+    JWT_SECRET=$(openssl rand -base64 48 | tr -d "=+/" | cut -c1-48)
+    
+    cat > .env << EOF
+# 🔐 Production Environment Variables
+# Automatisch generiert am $(date)
+
+# ============================================
+# DATENBANK
+# ============================================
+POSTGRES_USER=gastrocms
+POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+
+# ============================================
+# JWT SECRET (identisch für multi und crm)
+# ============================================
+JWT_SECRET=${JWT_SECRET}
+
+# ============================================
+# DOMAINS
+# ============================================
+NEXTAUTH_URL=https://crm.gastro-cms.at
+CRM_URL=https://crm.gastro-cms.at
+CRM_API_URL=https://crm.gastro-cms.at
+NEXT_PUBLIC_CRM_API_URL=https://crm.gastro-cms.at
+NEXT_PUBLIC_APP_URL=https://crm.gastro-cms.at
+
+# ============================================
+# SMTP/BREVO (E-Mail)
+# ============================================
+SMTP_HOST=smtp-relay.brevo.com
+SMTP_PORT=587
+SMTP_USER=96fdd4001@smtp-brevo.com
+SMTP_PASS=zLCrHG9R6Qx4NjEq
+SMTP_FROM=office@gastro-cms.at
+
+# ============================================
+# STRIPE (LIVE KEYS)
+# ============================================
+STRIPE_SECRET_KEY=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
+STRIPE_PUBLISHABLE_KEY=pk_live_51SUvUvAOr7EPlltydhV9UILlfsB6GVHaALQsEMU5tMOByNm76RdirRyQF62noUdciBmZzNMV1F2DQ0sjkQusDZEq00Tk7doRV0
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_51SUvUvAOr7EPlltydhV9UILlfsB6GVHaALQsEMU5tMOByNm76RdirRyQF62noUdciBmZzNMV1F2DQ0sjkQusDZEq00Tk7doRV0
+STRIPE_WEBHOOK_SECRET=whsec_T6Pl8UjEENn1vDmbP4jJEL2WP2B3DOzi
+STRIPE_CLIENT_ID=
+
+# ============================================
+# OPTIONAL
+# ============================================
+NEXT_PUBLIC_GA4_MEASUREMENT_ID=
+EOF
+    
+    # Sichere Berechtigungen setzen
+    chmod 600 .env
+    echo -e "${GREEN}✅ .env Datei erstellt mit sicheren Passwörtern${NC}"
+    echo -e "${YELLOW}⚠️  WICHTIG: Speichere die Passwörter sicher!${NC}"
+    echo -e "${YELLOW}   POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}${NC}"
+    echo -e "${YELLOW}   JWT_SECRET: ${JWT_SECRET}${NC}"
 else
     echo -e "${GREEN}✅ .env Datei vorhanden${NC}"
 fi
@@ -140,8 +195,12 @@ echo ""
 echo -e "${GREEN}✅ Deployment abgeschlossen!${NC}"
 echo ""
 echo "📝 Nächste Schritte:"
-echo "1. Prüfe die Logs: docker compose -f docker-compose.production.yml logs -f"
-echo "2. Migrationen ausführen: docker compose -f docker-compose.production.yml exec crm npx prisma migrate deploy"
-echo "3. Domains konfigurieren (Nginx/Apache)"
-echo "4. SSL-Zertifikate einrichten (Let's Encrypt)"
+echo "1. Migrationen ausführen: docker compose -f docker-compose.production.yml exec crm npx prisma migrate deploy"
+echo "2. Nginx konfigurieren:"
+echo "   - Kopiere nginx-production.conf nach /etc/nginx/sites-available/gastro-cms"
+echo "   - Aktiviere: ln -s /etc/nginx/sites-available/gastro-cms /etc/nginx/sites-enabled/"
+echo "   - Teste: nginx -t"
+echo "   - Lade neu: systemctl reload nginx"
+echo "3. SSL-Zertifikate einrichten: certbot --nginx -d crm.gastro-cms.at -d www.gastro-cms.at"
+echo "4. Prüfe die Logs: docker compose -f docker-compose.production.yml logs -f"
 
