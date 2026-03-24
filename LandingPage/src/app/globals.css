@@ -1,0 +1,26 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --red: #D60000;
+  --dark: #1a1a1a;
+  --gray: #6b7280;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+.container,
+.max-w-8xl {
+  max-width: 1400px;
+  margin-left: auto;
+  margin-right: auto;
+}

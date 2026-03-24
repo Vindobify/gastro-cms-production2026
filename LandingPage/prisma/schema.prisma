@@ -1,0 +1,113 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  // UTF-8: DATABASE_URL mit ?charset=utf8mb4 (z. B. mysql://user:pass@host:3306/db?charset=utf8mb4)
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model SlideshowImage {
+  id          Int      @id @default(autoincrement())
+  url         String
+  altText     String?
+  title       String?
+  description String?
+  link        String?
+  imageRight  String?
+  order       Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Speisekarte {
+  id          Int      @id @default(autoincrement())
+  imageUrl    String?
+  pdfUrl      String?
+  title       String   @default("Unsere Speisekarte")
+  description String?  @db.Text
+  updatedAt   DateTime @updatedAt
+}
+
+model CarouselImage {
+  id          Int      @id @default(autoincrement())
+  url         String
+  altText     String?
+  title       String?
+  order       Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model ServiceCard {
+  id          Int      @id @default(autoincrement())
+  headline    String
+  text        String   @db.Text
+  imageUrl    String?
+  imageAlt    String?
+  link        String?
+  order       Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model RestaurantImage {
+  id          Int      @id @default(autoincrement())
+  url         String
+  altText     String
+  title       String?
+  description String?
+  order       Int      @default(0)
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model Reservation {
+  id          Int      @id @default(autoincrement())
+  name        String
+  phone       String
+  email       String
+  persons     Int
+  date        String
+  time        String
+  message     String?  @db.Text
+  status      String   @default("pending")
+  createdAt   DateTime @default(now())
+}
+
+model SocialMedia {
+  id       Int     @id @default(autoincrement())
+  platform String
+  url      String
+  icon     String?
+  active   Boolean @default(true)
+  order    Int     @default(0)
+}
+
+model Settings {
+  id        Int      @id @default(autoincrement())
+  key       String   @unique
+  value     String?  @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+model LegalPage {
+  id        Int      @id @default(autoincrement())
+  type      String   @unique
+  content   String?  @db.LongText
+  updatedAt DateTime @updatedAt
+}

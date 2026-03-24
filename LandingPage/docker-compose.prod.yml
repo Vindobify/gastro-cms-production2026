@@ -1,0 +1,33 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: dacorrado_db
+    restart: always
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: dacorrado_root_2024
+      MYSQL_DATABASE: dacorrado
+      MYSQL_USER: dacorrado
+      MYSQL_PASSWORD: dacorrado1234
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./prisma/database.sql:/docker-entrypoint-initdb.d/import.sql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 10s
+      retries: 10
+
+  app:
+    build: .
+    container_name: dacorrado_app
+    restart: always
+    ports:
+      - "3003:3000"
+    env_file:
+      - .env.production
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  mysql_data:
