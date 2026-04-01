@@ -55,6 +55,7 @@ contextBridge.exposeInMainWorld("api", {
   kundeImportSettings: (id) => ipcRenderer.invoke("crm:kunde-import-settings", id)
   ,
   stagingCredentialsList: () => ipcRenderer.invoke("staging:credentials:list"),
+  stagingCredentialsListLocal: () => ipcRenderer.invoke("staging:credentials:list-local"),
   stagingCredentialsCreate: (payload) => ipcRenderer.invoke("staging:credentials:create", payload),
   stagingCredentialsUpdatePassword: (payload) => ipcRenderer.invoke("staging:credentials:update-password", payload),
   stagingCredentialsDelete: (payload) => ipcRenderer.invoke("staging:credentials:delete", payload),

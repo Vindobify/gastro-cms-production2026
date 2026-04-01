@@ -81,12 +81,25 @@ async function parseJsonBody(res) {
   }
 }
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function apiGet(endpoint) {
   const baseUrl = settingGet("vps-url", "https://updates.gastro-cms.at").replace(/\/$/, "");
   let res;
   try {
-    res = await fetch(`${baseUrl}${endpoint}`, { headers: authHeaders(false) });
+    res = await fetchWithTimeout(`${baseUrl}${endpoint}`, { headers: authHeaders(false) });
   } catch (err) {
+    if (String(err?.name || "") === "AbortError") {
+      return { error: "Netzwerk-Timeout beim Laden der Daten" };
+    }
     return { error: `Netzwerk: ${err.message || err}` };
   }
   return parseJsonBody(res);
@@ -96,7 +109,7 @@ async function apiPost(endpoint, body = {}) {
   const baseUrl = settingGet("vps-url", "https://updates.gastro-cms.at").replace(/\/$/, "");
   let res;
   try {
-    res = await fetch(`${baseUrl}${endpoint}`, {
+    res = await fetchWithTimeout(`${baseUrl}${endpoint}`, {
       method: "POST",
       headers: {
         ...authHeaders(true),
@@ -105,6 +118,9 @@ async function apiPost(endpoint, body = {}) {
       body: JSON.stringify(body)
     });
   } catch (err) {
+    if (String(err?.name || "") === "AbortError") {
+      return { error: "Netzwerk-Timeout beim Speichern der Daten" };
+    }
     return { error: `Netzwerk: ${err.message || err}` };
   }
   return parseJsonBody(res);
@@ -474,9 +490,27 @@ ipcMain.handle("crm:admin-user-delete", async (_event, payload) => {
 // Staging: lokale Zugangsdaten + Notizen/Protokoll im Control Center
 ipcMain.handle("staging:credentials:list", async () => {
   const remote = await apiGet("/staging/admin-users");
-  if (!remote?.error) return { rows: Array.isArray(remote?.rows) ? remote.rows : [], source: "remote" };
   const rows = getJsonSetting("staging-credentials", []);
-  return { rows: Array.isArray(rows) ? rows : [], source: "local", warning: remote?.error || null };
+  const localRows = Array.isArray(rows) ? rows : [];
+
+  if (!remote?.error) {
+    const remoteRows = Array.isArray(remote?.rows) ? remote.rows : [];
+    const seen = new Set(
+      remoteRows.map((r) => String(r?.email || "").trim().toLowerCase()).filter(Boolean)
+    );
+    const onlyLocal = localRows.filter((r) => {
+      const email = String(r?.email || "").trim().toLowerCase();
+      return email && !seen.has(email);
+    });
+    return { rows: [...remoteRows, ...onlyLocal], source: "remote+local" };
+  }
+
+  return { rows: localRows, source: "local", warning: remote?.error || null };
+});
+
+ipcMain.handle("staging:credentials:list-local", async () => {
+  const rows = getJsonSetting("staging-credentials", []);
+  return { rows: Array.isArray(rows) ? rows : [], source: "local-cache" };
 });
 
 ipcMain.handle("staging:credentials:create", async (_event, payload) => {
@@ -487,36 +521,74 @@ ipcMain.handle("staging:credentials:create", async (_event, payload) => {
   if (!email || !email.includes("@")) return { error: "Gültige E-Mail erforderlich" };
   if (password.length < 6) return { error: "Passwort muss mindestens 6 Zeichen haben" };
 
-  const remote = await apiPost("/staging/admin-users", { email, password, role, note });
-  if (!remote?.error) return remote;
-
   const rows = getJsonSetting("staging-credentials", []);
+  const upsertLocal = (idValue) => {
+    const idx = rows.findIndex((r) => String(r.email || "").toLowerCase() === email);
+    const base = {
+      id: idValue || `stg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      email,
+      password,
+      role,
+      note: note || null,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+    if (idx >= 0) rows[idx] = { ...rows[idx], ...base, updated_at: new Date().toISOString() };
+    else rows.unshift(base);
+    setJsonSetting("staging-credentials", rows);
+    return base.id;
+  };
+
+  const remote = await apiPost("/staging/admin-users", { email, password, role, note });
+  if (!remote?.error) {
+    const remoteId =
+      remote?.id ||
+      remote?.user?.id ||
+      remote?.row?.id ||
+      remote?.data?.id ||
+      null;
+    const localId = upsertLocal(remoteId);
+    return { ...remote, localShadowId: localId };
+  }
+
   if (rows.some((r) => String(r.email || "").toLowerCase() === email)) {
     return { error: "E-Mail existiert bereits" };
   }
-  const row = {
-    id: `stg-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    email,
-    password,
-    role,
-    note: note || null,
-    created_at: new Date().toISOString(),
-    updated_at: new Date().toISOString()
-  };
-  rows.unshift(row);
-  setJsonSetting("staging-credentials", rows);
-  return { ok: true, id: row.id, source: "local", warning: remote?.error || null };
+  const localId = upsertLocal(null);
+  return { ok: true, id: localId, source: "local", warning: remote?.error || null };
 });
 
 ipcMain.handle("staging:credentials:update-password", async (_event, payload) => {
   const id = String(payload?.id || "").trim();
+  const email = String(payload?.email || "").trim().toLowerCase();
   const password = String(payload?.password || "").trim();
   if (!id) return { error: "Ungültige ID" };
   if (password.length < 6) return { error: "Passwort muss mindestens 6 Zeichen haben" };
 
+  const patchRemoteById = async (rid) =>
+    apiPost(`/staging/admin-users/${encodeURIComponent(rid)}/password`, { password });
+
   if (!String(id).startsWith("stg-")) {
-    const remote = await apiPost(`/staging/admin-users/${encodeURIComponent(id)}/password`, { password });
-    if (!remote?.error) return remote;
+    const remote = await patchRemoteById(id);
+    if (!remote?.error) {
+      const rows = getJsonSetting("staging-credentials", []);
+      const idx = rows.findIndex((r) => String(r.id) === id);
+      if (idx >= 0) {
+        rows[idx] = { ...rows[idx], password, updated_at: new Date().toISOString() };
+        setJsonSetting("staging-credentials", rows);
+      }
+      return remote;
+    }
+  } else if (email) {
+    // stg-* shadow row: resolve real remote id by email and patch remote first.
+    const remoteList = await apiGet("/staging/admin-users");
+    const remoteRows = Array.isArray(remoteList?.rows) ? remoteList.rows : [];
+    const remoteMatch = remoteRows.find((r) => String(r?.email || "").trim().toLowerCase() === email);
+    const remoteId = remoteMatch ? String(remoteMatch.id || "").trim() : "";
+    if (remoteId) {
+      const remote = await patchRemoteById(remoteId);
+      if (remote?.error) return remote;
+    }
   }
 
   const rows = getJsonSetting("staging-credentials", []);
@@ -529,11 +601,20 @@ ipcMain.handle("staging:credentials:update-password", async (_event, payload) =>
 
 ipcMain.handle("staging:credentials:delete", async (_event, payload) => {
   const id = String(payload?.id || "").trim();
+  const email = String(payload?.email || "").trim().toLowerCase();
   if (!id) return { error: "Ungültige ID" };
 
+  const pruneLocal = () => {
+    const rows = getJsonSetting("staging-credentials", []);
+    const next = rows.filter((r) => {
+      const sameId = String(r.id) === id;
+      const sameEmail = email && String(r.email || "").trim().toLowerCase() === email;
+      return !(sameId || sameEmail);
+    });
+    setJsonSetting("staging-credentials", next);
+  };
+
   if (!String(id).startsWith("stg-")) {
-    const remote = await apiPost("/staging/admin-users/delete", { id });
-    if (!remote?.error) return remote;
     const remoteDel = await (async () => {
       const baseUrl = settingGet("vps-url", "https://updates.gastro-cms.at").replace(/\/$/, "");
       let res;
@@ -547,12 +628,38 @@ ipcMain.handle("staging:credentials:delete", async (_event, payload) => {
       }
       return parseJsonBody(res);
     })();
-    if (!remoteDel?.error) return remoteDel;
+    if (!remoteDel?.error) {
+      pruneLocal();
+      return remoteDel;
+    }
+    return remoteDel;
   }
 
-  const rows = getJsonSetting("staging-credentials", []);
-  const next = rows.filter((r) => String(r.id) !== id);
-  setJsonSetting("staging-credentials", next);
+  // Local shadow entry: try to resolve and delete remote by email as well.
+  if (String(id).startsWith("stg-") && email) {
+    const remoteList = await apiGet("/staging/admin-users");
+    const remoteRows = Array.isArray(remoteList?.rows) ? remoteList.rows : [];
+    const remoteMatch = remoteRows.find((r) => String(r?.email || "").trim().toLowerCase() === email);
+    const remoteId = remoteMatch ? String(remoteMatch.id || "").trim() : "";
+    if (remoteId && remoteId !== "main") {
+      const remoteDel = await (async () => {
+        const baseUrl = settingGet("vps-url", "https://updates.gastro-cms.at").replace(/\/$/, "");
+        let res;
+        try {
+          res = await fetch(`${baseUrl}/staging/admin-users/${encodeURIComponent(remoteId)}`, {
+            method: "DELETE",
+            headers: authHeaders(true)
+          });
+        } catch (err) {
+          return { error: `Netzwerk: ${err.message || err}` };
+        }
+        return parseJsonBody(res);
+      })();
+      if (remoteDel?.error) return remoteDel;
+    }
+  }
+
+  pruneLocal();
   return { ok: true };
 });
 

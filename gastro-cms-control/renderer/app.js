@@ -78,6 +78,14 @@ function topHeader(title, subtitle) {
   return `<div class="mb-1"><h2 class="text-2xl font-bold text-slate-900">${title}</h2><p class="mt-1 text-sm text-slate-500">${subtitle}</p></div>`;
 }
 
+function escHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
 function shortCommit(value) {
   if (!value) return "-";
   const v = String(value).trim();
@@ -2108,7 +2116,7 @@ async function renderCrm() {
 
   async function renderStagingProfile() {
     const settings = await window.api.settingsGet();
-    const baseUrl = (settings?.["vps-url"] || "https://updates.gastro-cms.at").replace(/\/$/, "");
+    const stagingUrl = (settings?.["staging-url"] || "https://test.restaurant-lieferservice.online").replace(/\/$/, "");
     const [versions, status] = await Promise.all([window.api.versionsStatus(), window.api.statusGet()]);
     const staging = versions?.staging || {};
     const landingStaging = versions?.landingStaging || {};
@@ -2122,7 +2130,7 @@ async function renderCrm() {
               <div class="h-12 w-12 rounded-2xl border border-brand-200 bg-brand-50 text-brand-700 font-black flex items-center justify-center">ST</div>
               <div class="min-w-0">
                 <div class="text-xl font-extrabold text-slate-900 truncate">Staging Umgebung</div>
-                <div class="mt-1 text-sm text-slate-500 break-all">${safe(baseUrl)}</div>
+                <div class="mt-1 text-sm text-slate-500 break-all">${safe(stagingUrl)}</div>
                 <div class="mt-2 flex flex-wrap gap-2">
                   <button id="crm-staging-back" type="button" class="btn-secondary">← Zurück</button>
                 </div>
@@ -2321,31 +2329,38 @@ async function renderCrm() {
       const listEl = document.getElementById("stg-cred-list");
       if (!listEl) return;
       listEl.innerHTML = "Lade…";
-      const [res, liveRes] = await Promise.all([window.api.stagingCredentialsList(), window.api.stagingProfile()]);
-      if (res?.error && !liveRes?.profile?.email) {
-        listEl.innerHTML = `<p class="text-red-700">${escHtml(res.error)}</p>`;
-        return;
-      }
-      const rows = Array.isArray(res?.rows) ? res.rows : [];
-      const liveEmail = String(liveRes?.profile?.email || "").trim().toLowerCase();
-      const hasLive = liveEmail && rows.some((r) => String(r.email || "").trim().toLowerCase() === liveEmail);
-      const merged = [...rows];
-      if (liveEmail && !hasLive) {
-        merged.unshift({
-          id: `live-${liveEmail}`,
-          email: liveEmail,
-          role: "ADMIN",
-          note: `Live aus Staging (${liveRes?.source || "source unbekannt"})`,
-          isLive: true
-        });
-      }
-      if (!merged.length) {
-        listEl.innerHTML = `<p class="text-slate-500 text-sm">Noch keine Zugänge hinterlegt.</p>`;
-        return;
-      }
-      listEl.innerHTML = merged
-        .map(
-          (u) => `<div class="mb-2 rounded-lg border border-slate-200 bg-white p-2">
+      const withTimeout = (promise, ms, label) =>
+        Promise.race([
+          promise,
+          new Promise((resolve) => setTimeout(() => resolve({ error: `${label} Timeout` }), ms))
+        ]);
+      const renderCredentialsList = (res, liveRes = {}) => {
+        if (res?.error && !liveRes?.profile?.email) {
+          listEl.innerHTML = `<p class="text-red-700">${escHtml(res.error)}</p>`;
+          return;
+        }
+        const rows = Array.isArray(res?.rows) ? res.rows : [];
+        const liveEmail = String(liveRes?.profile?.email || "").trim().toLowerCase();
+        const hasLive = liveEmail && rows.some((r) => String(r.email || "").trim().toLowerCase() === liveEmail);
+        const merged = [...rows];
+        if (liveEmail && !hasLive) {
+          merged.unshift({
+            id: `live-${liveEmail}`,
+            email: liveEmail,
+            role: "ADMIN",
+            note: `Live aus Staging (${liveRes?.source || "source unbekannt"})`,
+            isLive: true
+          });
+        }
+        if (!merged.length) {
+          listEl.innerHTML = `<p class="text-slate-500 text-sm">Noch keine Zugänge hinterlegt.</p>`;
+          return;
+        }
+        listEl.innerHTML = merged
+          .map(
+            (u) => {
+              const isProtected = !!u.isLive || !!u.isMainAdmin || String(u.id || "") === "main";
+              return `<div class="mb-2 rounded-lg border border-slate-200 bg-white p-2">
             <div class="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <div class="font-semibold text-slate-900 break-all">${escHtml(u.email)}</div>
@@ -2353,87 +2368,99 @@ async function renderCrm() {
                 ${u.note ? `<div class="text-xs text-slate-500">${escHtml(u.note)}</div>` : ""}
               </div>
               ${
-                u.isLive
-                  ? `<button class="btn-secondary stg-cred-adopt" data-email="${escHtml(u.email)}">Übernehmen</button>`
-                  : `<button class="btn-secondary !border-red-300 !text-red-700 stg-cred-delete" data-id="${escHtml(u.id)}">Löschen</button>`
+                isProtected
+                  ? `<button class="btn-secondary stg-cred-adopt" data-email="${escHtml(u.email)}">${u.isLive ? "Übernehmen" : "Geschützt"}</button>`
+                  : `<button class="btn-secondary !border-red-300 !text-red-700 stg-cred-delete" data-id="${escHtml(u.id)}" data-email="${escHtml(u.email)}">Löschen</button>`
               }
             </div>
             ${
-              u.isLive
-                ? `<div class="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">Live-User erkannt. Passwort lokal übernehmen oder direkt in Staging ändern.</div>`
+              isProtected
+                ? `<div class="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">${u.isLive ? "Live-User erkannt. Passwort lokal übernehmen oder direkt in Staging ändern." : "Hauptadmin ist geschützt und kann nicht gelöscht werden."}</div>`
                 : `<div class="mt-2 flex flex-wrap gap-2">
-                    <input class="input !h-9 !py-1.5 text-sm stg-cred-new-pass" data-id="${escHtml(u.id)}" placeholder="Neues Passwort" />
-                    <button class="btn-secondary stg-cred-pass-gen" data-id="${escHtml(u.id)}">Generieren</button>
-                    <button class="btn-primary stg-cred-pass-save" data-id="${escHtml(u.id)}">Passwort ändern</button>
+                    <input class="input !h-9 !py-1.5 text-sm stg-cred-new-pass" data-id="${escHtml(u.id)}" data-email="${escHtml(u.email)}" placeholder="Neues Passwort" />
+                    <button class="btn-secondary stg-cred-pass-gen" data-id="${escHtml(u.id)}" data-email="${escHtml(u.email)}">Generieren</button>
+                    <button class="btn-primary stg-cred-pass-save" data-id="${escHtml(u.id)}" data-email="${escHtml(u.email)}">Passwort ändern</button>
                   </div>`
             }
-          </div>`
-        )
-        .join("");
+          </div>`;
+            }
+          )
+          .join("");
 
-      listEl.querySelectorAll(".stg-cred-adopt").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const email = btn.getAttribute("data-email") || "";
-          const emailEl = document.getElementById("stg-cred-email");
-          if (emailEl) emailEl.value = email;
-          const passEl = document.getElementById("stg-cred-password");
-          if (passEl && !passEl.value) passEl.value = generateStagingPassword();
-          showToast("Live-Admin ins Formular übernommen", "info");
+        listEl.querySelectorAll(".stg-cred-adopt").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const email = btn.getAttribute("data-email") || "";
+            const emailEl = document.getElementById("stg-cred-email");
+            if (emailEl) emailEl.value = email;
+            const passEl = document.getElementById("stg-cred-password");
+            if (passEl && !passEl.value) passEl.value = generateStagingPassword();
+            showToast("Live-Admin ins Formular übernommen", "info");
+          });
         });
-      });
 
-      listEl.querySelectorAll(".stg-cred-pass-gen").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const uid = btn.getAttribute("data-id");
-          const input = listEl.querySelector(`.stg-cred-new-pass[data-id="${uid}"]`);
-          if (input) input.value = generateStagingPassword();
+        listEl.querySelectorAll(".stg-cred-pass-gen").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const uid = btn.getAttribute("data-id");
+            const input = listEl.querySelector(`.stg-cred-new-pass[data-id="${uid}"]`);
+            if (input) input.value = generateStagingPassword();
+          });
         });
-      });
-      listEl.querySelectorAll(".stg-cred-pass-save").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          const uid = btn.getAttribute("data-id");
-          const input = listEl.querySelector(`.stg-cred-new-pass[data-id="${uid}"]`);
-          const password = (input?.value || "").trim();
-          if (!password) return showToast("Neues Passwort eingeben", "error");
-          const r = await window.api.stagingCredentialsUpdatePassword({ id: uid, password });
-          if (r?.error) return showToast(`Fehler: ${r.error}`, "error");
-          showToast("Passwort geändert", "success");
-          await appendStagingActivity("zugang", `Passwort geändert: ${uid}`);
-          await refreshStagingActivity();
-          await refreshStagingCredentials();
+        listEl.querySelectorAll(".stg-cred-pass-save").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const uid = btn.getAttribute("data-id");
+            const email = btn.getAttribute("data-email") || "";
+            const input = listEl.querySelector(`.stg-cred-new-pass[data-id="${uid}"]`);
+            const password = (input?.value || "").trim();
+            if (!password) return showToast("Neues Passwort eingeben", "error");
+            const r = await window.api.stagingCredentialsUpdatePassword({ id: uid, email, password });
+            if (r?.error) return showToast(`Fehler: ${r.error}`, "error");
+            showToast("Passwort geändert", "success");
+            await appendStagingActivity("zugang", `Passwort geändert: ${uid}`);
+            await refreshStagingActivity();
+            await refreshStagingCredentials();
+          });
         });
-      });
-      listEl.querySelectorAll(".stg-cred-delete").forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          const uid = btn.getAttribute("data-id");
-          if (!window.confirm("Zugang wirklich löschen?")) return;
-          const r = await window.api.stagingCredentialsDelete({ id: uid });
-          if (r?.error) return showToast(`Fehler: ${r.error}`, "error");
-          showToast("Zugang gelöscht", "success");
-          await appendStagingActivity("zugang", `Zugang gelöscht: ${uid}`);
-          await refreshStagingActivity();
-          await refreshStagingCredentials();
+        listEl.querySelectorAll(".stg-cred-delete").forEach((btn) => {
+          btn.addEventListener("click", async () => {
+            const uid = btn.getAttribute("data-id");
+            const email = btn.getAttribute("data-email") || "";
+            if (!window.confirm("Zugang wirklich löschen?")) return;
+            const r = await window.api.stagingCredentialsDelete({ id: uid, email });
+            if (r?.error) return showToast(`Fehler: ${r.error}`, "error");
+            showToast("Zugang gelöscht", "success");
+            await appendStagingActivity("zugang", `Zugang gelöscht: ${uid}`);
+            await refreshStagingActivity();
+            await refreshStagingCredentials();
+          });
         });
-      });
-    }
+      };
 
-    const financeKpiEl = document.getElementById("stg-finance-kpis");
-    if (financeKpiEl) {
-      const kpis = await window.api.dashboardKpis();
-      if (kpis?.restaurantsTotal != null) {
-        financeKpiEl.textContent = `Umsatz gesamt: € ${fmtMoney(kpis.totalRevenue || 0)} · Provision gesamt: € ${fmtMoney(
-          kpis.totalCommission || 0
-        )} · Restaurants erreichbar: ${kpis.restaurantsReachable}/${kpis.restaurantsTotal}`;
-      } else {
-        financeKpiEl.textContent = "Keine KPI-Daten verfügbar.";
+      // Fast local render first: avoids permanent "Lade..." on slow/hanging network paths.
+      try {
+        const local = await withTimeout(window.api.stagingCredentialsListLocal(), 2500, "Lokaler Cache");
+        if (local && !local.error) renderCredentialsList(local, {});
+      } catch (_e) {
+        // continue with remote refresh below
+      }
+      let res = {};
+      let liveRes = {};
+      try {
+        const [credResult, profileResult] = await Promise.allSettled([
+          withTimeout(window.api.stagingCredentialsList(), 12000, "Zugangsdaten"),
+          withTimeout(window.api.stagingProfile(), 12000, "Staging-Profil")
+        ]);
+        res = credResult.status === "fulfilled" ? credResult.value || {} : { error: "Zugangsdaten konnten nicht geladen werden" };
+        liveRes = profileResult.status === "fulfilled" ? profileResult.value || {} : {};
+      } catch (_err) {
+        listEl.innerHTML = `<p class="text-red-700">Fehler beim Laden der Zugangsdaten.</p>`;
+        return;
+      }
+      try {
+        renderCredentialsList(res, liveRes);
+      } catch (_err) {
+        listEl.innerHTML = `<p class="text-red-700">Darstellung der Zugangsdaten fehlgeschlagen.</p>`;
       }
     }
-
-    const notesRes = await window.api.stagingNotesGet();
-    const notesEl = document.getElementById("stg-notes");
-    if (notesEl) notesEl.value = notesRes?.text || "";
-    await refreshStagingActivity();
-    await refreshStagingCredentials();
 
     document.getElementById("crm-staging-back")?.addEventListener("click", async () => {
       await renderList();
@@ -2533,6 +2560,32 @@ async function renderCrm() {
       await refreshStagingActivity();
     });
     document.getElementById("stg-activity-refresh")?.addEventListener("click", () => refreshStagingActivity());
+
+    const financeKpiEl = document.getElementById("stg-finance-kpis");
+    if (financeKpiEl) {
+      try {
+        const kpis = await window.api.dashboardKpis();
+        if (kpis?.restaurantsTotal != null) {
+          financeKpiEl.textContent = `Umsatz gesamt: € ${fmtMoney(kpis.totalRevenue || 0)} · Provision gesamt: € ${fmtMoney(
+            kpis.totalCommission || 0
+          )} · Restaurants erreichbar: ${kpis.restaurantsReachable}/${kpis.restaurantsTotal}`;
+        } else {
+          financeKpiEl.textContent = "Keine KPI-Daten verfügbar.";
+        }
+      } catch (_err) {
+        financeKpiEl.textContent = "KPI-Daten konnten nicht geladen werden.";
+      }
+    }
+
+    try {
+      const notesRes = await window.api.stagingNotesGet();
+      const notesEl = document.getElementById("stg-notes");
+      if (notesEl) notesEl.value = notesRes?.text || "";
+    } catch (_err) {
+      // Notes are optional for initial render.
+    }
+    await refreshStagingActivity().catch(() => {});
+    await refreshStagingCredentials().catch(() => {});
   }
 
   async function renderList() {
@@ -2778,6 +2831,8 @@ async function renderSettings() {
       <input id="vps-pass" type="password" class="input" value="${settings["vps-pass"] || ""}">
       <label class="mb-1 mt-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">Admin Token</label>
       <input id="admin-token" type="password" class="input" value="${settings["admin-token"] || ""}">
+      <label class="mb-1 mt-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">Staging URL (Anzeige)</label>
+      <input id="staging-url" class="input" value="${settings["staging-url"] || "https://test.restaurant-lieferservice.online"}">
       <div class="mt-4 flex flex-wrap gap-2">
         <button id="save-settings" class="btn-primary">Speichern</button>
         <button id="test-connection" type="button" class="btn-secondary">Verbindung testen</button>
@@ -2799,7 +2854,7 @@ async function renderSettings() {
     </div>
   `;
   document.getElementById("save-settings").addEventListener("click", async () => {
-    const fields = ["vps-url", "vps-user", "vps-pass", "admin-token"];
+    const fields = ["vps-url", "vps-user", "vps-pass", "admin-token", "staging-url"];
     for (const key of fields) {
       const value = document.getElementById(key).value.trim();
       if (value) await window.api.settingsSet(key, value);
